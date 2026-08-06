@@ -10,3 +10,4 @@ All notable changes to this project are documented in this file.
 - Empty `Tab Groups` tool window registration.
 - Project-workspace persistent state service baseline.
 - Build, package, structure verification, and CI baseline.
+- Phase 1 model, project-workspace CRUD, file resolution, and non-destructive restore foundation.

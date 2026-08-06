@@ -4,6 +4,15 @@ import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
 import com.intellij.openapi.components.StoragePathMacros
+import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.fileEditor.TextEditor
+import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.io.FileUtil
+import com.intellij.openapi.vfs.VirtualFile
+import com.whalesea.ideatabmanager.model.TabGroupRecord
+import com.whalesea.ideatabmanager.model.TabGroupState
+import com.whalesea.ideatabmanager.model.TabReference
+import java.util.UUID
 
 /**
  * Project-private storage root for future Tab Group records.
@@ -15,16 +24,122 @@ import com.intellij.openapi.components.StoragePathMacros
     name = "IdeaTabManager.TabGroups",
     storages = [Storage(StoragePathMacros.WORKSPACE_FILE)],
 )
-class TabGroupProjectState : PersistentStateComponent<TabGroupProjectState.State> {
-    data class State(
-        var schemaVersion: Int = 1,
-    )
+class TabGroupProjectState(private val project: Project) : PersistentStateComponent<TabGroupState> {
+    private var state = TabGroupState()
 
-    private var state = State()
+    override fun getState(): TabGroupState = state
 
-    override fun getState(): State = state
-
-    override fun loadState(state: State) {
-        this.state = state
+    override fun loadState(state: TabGroupState) {
+        this.state = state.also { it.schemaVersion = TabGroupState.CURRENT_SCHEMA_VERSION }
     }
+
+    fun groups(): List<TabGroupRecord> = state.groups.map(::copyGroup)
+
+    fun createGroup(name: String, colorId: String = TabGroupRecord.DEFAULT_COLOR_ID): TabGroupRecord =
+        createGroup(name, colorId, emptyList(), null)
+
+    fun createGroup(
+        name: String,
+        colorId: String,
+        tabs: Collection<TabReference>,
+        activeFileUrl: String?,
+    ): TabGroupRecord {
+        val now = System.currentTimeMillis()
+        val group = TabGroupRecord(
+            id = UUID.randomUUID().toString(),
+            name = requireName(name),
+            colorId = requireColorId(colorId),
+            tabs = distinctReferences(tabs).toMutableList(),
+            activeFileUrl = activeFileUrl?.takeIf { url -> tabs.any { it.fileUrl == url } },
+            createdAtEpochMs = now,
+            updatedAtEpochMs = now,
+        )
+        state.groups += group
+        return copyGroup(group)
+    }
+
+    fun captureOpenTabs(): CapturedOpenTabs {
+        val fileEditorManager = FileEditorManager.getInstance(project)
+        val activeFileUrl = fileEditorManager.selectedFiles.firstOrNull()?.url
+        val tabs = fileEditorManager.openFiles.map(::toReference)
+        return CapturedOpenTabs(tabs, activeFileUrl)
+    }
+
+    fun updateGroupFromOpenTabs(groupId: String): TabGroupRecord? {
+        val captured = captureOpenTabs()
+        return updateGroup(groupId, captured.tabs, captured.activeFileUrl)
+    }
+
+    fun updateGroup(groupId: String, tabs: Collection<TabReference>, activeFileUrl: String?): TabGroupRecord? =
+        findMutable(groupId)?.also { group ->
+            group.tabs = distinctReferences(tabs).toMutableList()
+            group.activeFileUrl = activeFileUrl?.takeIf { url -> group.tabs.any { it.fileUrl == url } }
+            touch(group)
+        }?.let(::copyGroup)
+
+    fun renameGroup(groupId: String, name: String): TabGroupRecord? =
+        findMutable(groupId)?.also {
+            it.name = requireName(name)
+            touch(it)
+        }?.let(::copyGroup)
+
+    fun changeGroupColor(groupId: String, colorId: String): TabGroupRecord? =
+        findMutable(groupId)?.also {
+            it.colorId = requireColorId(colorId)
+            touch(it)
+        }?.let(::copyGroup)
+
+    fun deleteGroup(groupId: String): Boolean = state.groups.removeIf { it.id == groupId }
+
+    fun addTabToGroup(groupId: String, reference: TabReference): TabGroupRecord? {
+        require(reference.fileUrl.isNotBlank()) { "Tab reference URL must not be blank." }
+        return findMutable(groupId)?.also { group ->
+            if (group.tabs.none { it.fileUrl == reference.fileUrl }) {
+                group.tabs += reference.copy()
+                touch(group)
+            }
+        }?.let(::copyGroup)
+    }
+
+    fun removeTabFromGroup(groupId: String, fileUrl: String): TabGroupRecord? =
+        findMutable(groupId)?.also { group ->
+            if (group.tabs.removeIf { it.fileUrl == fileUrl }) {
+                if (group.activeFileUrl == fileUrl) {
+                    group.activeFileUrl = group.tabs.firstOrNull()?.fileUrl
+                }
+                touch(group)
+            }
+        }?.let(::copyGroup)
+
+    private fun toReference(file: VirtualFile): TabReference {
+        val editor = FileEditorManager.getInstance(project).getEditors(file)
+            .filterIsInstance<TextEditor>()
+            .firstOrNull()
+        return TabReference(
+            fileUrl = file.url,
+            projectRelativePath = project.basePath?.let { FileUtil.getRelativePath(it, file.path, '/') },
+            lastKnownName = file.name,
+            caretOffset = editor?.editor?.caretModel?.offset,
+        )
+    }
+
+    private fun findMutable(groupId: String): TabGroupRecord? = state.groups.firstOrNull { it.id == groupId }
+
+    private fun touch(group: TabGroupRecord) {
+        group.updatedAtEpochMs = System.currentTimeMillis()
+    }
+
+    private fun requireName(name: String): String = name.trim().also { require(it.isNotEmpty()) { "Group name must not be blank." } }
+
+    private fun requireColorId(colorId: String): String = colorId.trim().also { require(it.isNotEmpty()) { "Color ID must not be blank." } }
+
+    private fun distinctReferences(references: Collection<TabReference>): List<TabReference> =
+        references.filter { it.fileUrl.isNotBlank() }.distinctBy { it.fileUrl }.map { it.copy() }
+
+    private fun copyGroup(group: TabGroupRecord): TabGroupRecord = group.copy(tabs = group.tabs.map { it.copy() }.toMutableList())
 }
+
+data class CapturedOpenTabs(
+    val tabs: List<TabReference>,
+    val activeFileUrl: String?,
+)
