@@ -1,0 +1,29 @@
+<idea-plugin>
+  <id>com.whalesea.ideatabmanager</id>
+  <name>Tab Groups</name>
+  <vendor email="whalesea.gustav@gmail.com" url="https://github.com/Whalesea-Gustav/IdeaTabManager">Whalesea-Gustav</vendor>
+
+  <description><![CDATA[
+    <p>Save open editor files as named, colored, persistent work groups.</p>
+    <p>The initial scaffold provides the Tab Groups tool window and project-local state foundation.</p>
+  ]]></description>
+
+  <change-notes><![CDATA[
+    <h3>0.1.0</h3>
+    <ul>
+      <li>Initial development scaffold.</li>
+    </ul>
+  ]]></change-notes>
+
+  <depends>com.intellij.modules.platform</depends>
+
+  <resource-bundle>messages.IdeaTabManagerBundle</resource-bundle>
+
+  <extensions defaultExtensionNs="com.intellij">
+    <projectService serviceImplementation="com.whalesea.ideatabmanager.service.TabGroupProjectState"/>
+    <toolWindow id="Tab Groups"
+                anchor="left"
+                icon="/icons/tabGroups.svg"
+                factoryClass="com.whalesea.ideatabmanager.toolwindow.TabGroupsToolWindowFactory"/>
+  </extensions>
+</idea-plugin>
