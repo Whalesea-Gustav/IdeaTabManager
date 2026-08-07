@@ -4,14 +4,19 @@
   <vendor email="whalesea.gustav@gmail.com" url="https://github.com/Whalesea-Gustav/IdeaTabManager">Whalesea-Gustav</vendor>
 
   <description><![CDATA[
-    <p>Save open editor files as named, colored, persistent work groups.</p>
-    <p>The initial scaffold provides the Tab Groups tool window and project-local state foundation.</p>
+    <p>Save open editor files as named, colored, persistent work groups and restore a coding context when you return to it.</p>
+    <p>Manage groups from a compact Tool Window, batch-add files from the Project View, and optionally open a matching TortoiseSVN or TortoiseGit commit dialog for a group.</p>
   ]]></description>
 
   <change-notes><![CDATA[
-    <h3>0.1.0</h3>
+    <h3>0.2.0 — Tab Group workflows and Tortoise commits</h3>
     <ul>
-      <li>Initial development scaffold.</li>
+      <li>Manage named, colored, persistent Tab Groups from the <b>Tab Groups</b> Tool Window.</li>
+      <li>Create groups from all open tabs or selected open tabs, add files from the Project View, and add files directly to a group.</li>
+      <li>Collapse groups, add an optional note, and press <b>F2</b> on a selected header title or note to edit it inline.</li>
+      <li>Use <b>Focus Group</b> to close only clean, unpinned tabs outside the group; pinned and modified tabs remain protected.</li>
+      <li>Open <b>TortoiseSVN</b> or <b>TortoiseGit</b> Commit from a group header when its files belong to a detected local working copy.</li>
+      <li>Mixed groups keep separate commit entries for distinct Git/SVN working-copy roots, so unrelated repositories are never combined.</li>
     </ul>
   ]]></change-notes>
 
@@ -21,9 +26,42 @@
 
   <extensions defaultExtensionNs="com.intellij">
     <projectService serviceImplementation="com.whalesea.ideatabmanager.service.TabGroupProjectState"/>
+    <notificationGroup id="Tab Groups" displayType="BALLOON"/>
     <toolWindow id="Tab Groups"
                 anchor="left"
                 icon="/icons/tabGroups.svg"
                 factoryClass="com.whalesea.ideatabmanager.toolwindow.TabGroupsToolWindowFactory"/>
   </extensions>
+
+  <actions>
+    <group id="IdeaTabManager.TabGroups.EditorPopup"
+           text="Tab Groups"
+           description="Manage the current editor file in Tab Groups"
+           popup="true">
+      <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+      <add-to-group group-id="EditorTabPopupMenu" anchor="last"/>
+      <action id="IdeaTabManager.NewGroupWithCurrentTab"
+              class="com.whalesea.ideatabmanager.actions.CreateGroupFromCurrentTabAction"
+              text="New Group with Current Tab"/>
+      <action id="IdeaTabManager.AddCurrentTabToGroup"
+              class="com.whalesea.ideatabmanager.actions.AddCurrentTabToGroupAction"
+              text="Add Current Tab to Group..."/>
+      <action id="IdeaTabManager.RemoveCurrentTabFromGroup"
+              class="com.whalesea.ideatabmanager.actions.RemoveCurrentTabFromGroupAction"
+              text="Remove Current Tab from Group..."/>
+    </group>
+    <group id="IdeaTabManager.TabGroups.ProjectViewPopup"
+           class="com.whalesea.ideatabmanager.actions.AddSelectedProjectFilesToGroupActionGroup"
+           text="Tab Groups"
+           description="Add selected project files to a tab group"
+           popup="true">
+      <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+    </group>
+    <action id="IdeaTabManager.ShowTabGroups"
+            class="com.whalesea.ideatabmanager.actions.ShowTabGroupsAction"
+            text="Show Tab Groups"
+            description="Open the Tab Groups tool window">
+      <add-to-group group-id="ToolsMenu" anchor="last"/>
+    </action>
+  </actions>
 </idea-plugin>

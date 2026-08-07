@@ -35,6 +35,19 @@ class TabGroupProjectState(private val project: Project) : PersistentStateCompon
 
     fun groups(): List<TabGroupRecord> = state.groups.map(::copyGroup)
 
+    fun recentGroups(limit: Int = 5): List<TabGroupRecord> = state.groups
+        .sortedWith(compareByDescending<TabGroupRecord> { it.lastUsedAtEpochMs }.thenByDescending { it.updatedAtEpochMs })
+        .take(limit)
+        .map(::copyGroup)
+
+    fun needsFocusSafetyNotice(): Boolean = !state.focusSafetyNoticeAcknowledged
+
+    fun acknowledgeFocusSafetyNotice() {
+        if (!state.focusSafetyNoticeAcknowledged) {
+            state.focusSafetyNoticeAcknowledged = true
+        }
+    }
+
     fun createGroup(name: String, colorId: String = TabGroupRecord.DEFAULT_COLOR_ID): TabGroupRecord =
         createGroup(name, colorId, emptyList(), null)
 
@@ -55,6 +68,7 @@ class TabGroupProjectState(private val project: Project) : PersistentStateCompon
             updatedAtEpochMs = now,
         )
         state.groups += group
+        notifyGroupsChanged()
         return copyGroup(group)
     }
 
@@ -64,6 +78,8 @@ class TabGroupProjectState(private val project: Project) : PersistentStateCompon
         val tabs = fileEditorManager.openFiles.map(::toReference)
         return CapturedOpenTabs(tabs, activeFileUrl)
     }
+
+    fun referenceFor(file: VirtualFile): TabReference = toReference(file)
 
     fun updateGroupFromOpenTabs(groupId: String): TabGroupRecord? {
         val captured = captureOpenTabs()
@@ -75,31 +91,63 @@ class TabGroupProjectState(private val project: Project) : PersistentStateCompon
             group.tabs = distinctReferences(tabs).toMutableList()
             group.activeFileUrl = activeFileUrl?.takeIf { url -> group.tabs.any { it.fileUrl == url } }
             touch(group)
+            notifyGroupsChanged()
         }?.let(::copyGroup)
 
     fun renameGroup(groupId: String, name: String): TabGroupRecord? =
         findMutable(groupId)?.also {
             it.name = requireName(name)
             touch(it)
+            notifyGroupsChanged()
+        }?.let(::copyGroup)
+
+    fun updateGroupComment(groupId: String, comment: String): TabGroupRecord? =
+        findMutable(groupId)?.also {
+            it.comment = comment.replace(Regex("[\\r\\n]+"), " ").trim()
+            touch(it)
+            notifyGroupsChanged()
         }?.let(::copyGroup)
 
     fun changeGroupColor(groupId: String, colorId: String): TabGroupRecord? =
         findMutable(groupId)?.also {
             it.colorId = requireColorId(colorId)
             touch(it)
+            notifyGroupsChanged()
         }?.let(::copyGroup)
 
-    fun deleteGroup(groupId: String): Boolean = state.groups.removeIf { it.id == groupId }
+    fun setGroupCollapsed(groupId: String, isCollapsed: Boolean): TabGroupRecord? =
+        findMutable(groupId)?.also {
+            if (it.isCollapsed != isCollapsed) {
+                it.isCollapsed = isCollapsed
+                touch(it)
+                notifyGroupsChanged()
+            }
+        }?.let(::copyGroup)
+
+    fun deleteGroup(groupId: String): Boolean = state.groups.removeIf { it.id == groupId }.also { removed ->
+        if (removed) notifyGroupsChanged()
+    }
 
     fun addTabToGroup(groupId: String, reference: TabReference): TabGroupRecord? {
         require(reference.fileUrl.isNotBlank()) { "Tab reference URL must not be blank." }
-        return findMutable(groupId)?.also { group ->
-            if (group.tabs.none { it.fileUrl == reference.fileUrl }) {
-                group.tabs += reference.copy()
+        return addTabsToGroup(groupId, listOf(reference))
+    }
+
+    fun addTabsToGroup(groupId: String, references: Collection<TabReference>): TabGroupRecord? =
+        findMutable(groupId)?.also { group ->
+            val additions = distinctReferences(references).filter { candidate -> group.tabs.none { it.fileUrl == candidate.fileUrl } }
+            if (additions.isNotEmpty()) {
+                group.tabs += additions
                 touch(group)
+                notifyGroupsChanged()
             }
         }?.let(::copyGroup)
-    }
+
+    fun markGroupUsed(groupId: String): TabGroupRecord? =
+        findMutable(groupId)?.also {
+            it.lastUsedAtEpochMs = System.currentTimeMillis()
+            notifyGroupsChanged()
+        }?.let(::copyGroup)
 
     fun removeTabFromGroup(groupId: String, fileUrl: String): TabGroupRecord? =
         findMutable(groupId)?.also { group ->
@@ -108,8 +156,30 @@ class TabGroupProjectState(private val project: Project) : PersistentStateCompon
                     group.activeFileUrl = group.tabs.firstOrNull()?.fileUrl
                 }
                 touch(group)
+                notifyGroupsChanged()
             }
         }?.let(::copyGroup)
+
+    fun restoreGroup(groupId: String, onComplete: (TabGroupRestoreResult) -> Unit = {}): Boolean {
+        val group = findMutable(groupId)?.let(::copyGroup) ?: return false
+        TabGroupRestorer(project).restore(group, onComplete)
+        return true
+    }
+
+    fun focusGroup(groupId: String, onComplete: (FocusGroupResult) -> Unit = {}): Boolean {
+        val group = findMutable(groupId)?.let(::copyGroup) ?: return false
+        TabGroupRestorer(project).focus(group, onComplete)
+        return true
+    }
+
+    fun restoreReference(reference: TabReference, onComplete: (TabGroupRestoreResult) -> Unit = {}) {
+        val singleTabGroup = TabGroupRecord(
+            id = "",
+            tabs = mutableListOf(reference.copy()),
+            activeFileUrl = reference.fileUrl,
+        )
+        TabGroupRestorer(project).restore(singleTabGroup, onComplete)
+    }
 
     private fun toReference(file: VirtualFile): TabReference {
         val editor = FileEditorManager.getInstance(project).getEditors(file)
@@ -127,6 +197,10 @@ class TabGroupProjectState(private val project: Project) : PersistentStateCompon
 
     private fun touch(group: TabGroupRecord) {
         group.updatedAtEpochMs = System.currentTimeMillis()
+    }
+
+    private fun notifyGroupsChanged() {
+        project.messageBus.syncPublisher(TabGroupChangeListener.TOPIC).groupsChanged()
     }
 
     private fun requireName(name: String): String = name.trim().also { require(it.isNotEmpty()) { "Group name must not be blank." } }

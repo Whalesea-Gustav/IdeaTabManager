@@ -107,7 +107,7 @@ Tab Groups
 
 - Kotlin；
 - Gradle + IntelliJ Platform Gradle Plugin；
-- Java 21；
+- Java 25（与 Rider 2026.2 平台基线一致）；
 - 通用 IntelliJ Platform File Editor API；
 - 在搭建时以用户当前安装的 Rider 2026.2 为首要验证目标，并额外验证同一平台基线的 IntelliJ IDEA。
 
@@ -329,6 +329,9 @@ data class TabDragPayload(
 - caret offset 越界时安全截断或忽略；
 - P0 激活不关闭其他 Tab；
 - DnD 目标分类和非法 drop 拒绝。
+- SVN/Git 工作副本标记识别、同类型不同根目录分组；
+- TortoiseSVN 多路径 pathfile 的 UTF-16LE、无 BOM、LF-only 约束；
+- TortoiseGit 多路径 `*` 分隔 `/path:` 参数构建。
 
 ### 手动 Sandbox 验收
 
@@ -340,6 +343,8 @@ data class TabDragPayload(
 6. 在 Rider 的 Unreal 项目和普通 IntelliJ 项目各验证一次；
 7. 在浅色、Darcula、高 DPI 下检查颜色和文件行；
 8. 验证 Preview Tab、Pinned Tab 和编辑器 Split 没有被破坏。
+9. 在一个混合 SVN/Git 的 Tab Group 中右键确认只显示已安装客户端的对应 Commit 项；如包含多个工作副本根，确认它们作为独立子项显示。
+10. 打开两个以上 SVN 文件，确认 TortoiseSVN Commit 对话框显示完整文件选择；打开两个以上 Git 文件，确认 TortoiseGit Commit 对话框显示完整文件选择。操作前不要在对话框中点击 Commit，除非这是用户明确要执行的提交。
 
 ## 8. 发布与版本策略
 
@@ -353,9 +358,38 @@ data class TabDragPayload(
 
 版本规则：
 
-- `0.1.0`：P0 可用；
-- `0.2.0`：拖拽与 Edge 风格组管理；
-- `0.3.0`：Focus Mode、导入导出等高级能力；
+- `0.1.0`：工程与持久化基线；
+- `0.2.0`：可用的 Tool Window 工作流、批量编组、Focus Group 与 Tortoise 提交入口；
+- `0.3.0`：Tool Window 拖拽、导入导出等高级能力；
 - 修复版本使用 patch，例如 `0.1.1`。
 
 首次 Marketplace 发布需要人工确认条目元数据；后续发布应使用受保护 GitHub Environment 的批准流程。
+
+## 9. 工作上下文切换与元数据编辑迭代
+
+### 9.1 Focus Group
+
+`Open Group` 保持默认的非破坏性追加恢复。`Focus Group` 使用公开的 `FileEditorManager.hasPinnedEditorTab`：先恢复目标组，再关闭不属于目标组的干净编辑器；未保存 Document 与 Pinned Tab 必须保留。安全确认只在每个项目工作区首次执行时显示，之后通过完成通知报告已关闭和保留数量。
+
+### 9.2 Open Tabs 批量编组
+
+Tool Window 顶部提供 `Open Tabs` 镜像区，使用勾选多选。用户可从所选文件创建组，或将所有所选文件一次加入已有组。该区域只是当前打开编辑器的操作入口，不能在 `fileClosed` 时反向删除工作组引用。
+
+### 9.3 标题、注释与折叠
+
+每个组持久化 `name`（标题）、`comment`（单行注释）和 `isCollapsed`。Header 展示标题、注释和文件数量；选中标题或注释后按 `F2` 进入对应文本的行内编辑，`Enter` 提交，`Escape` 取消。组操作收纳到 Header 右键菜单。
+
+### 9.4 特定文件批量加入
+
+Project View 多选文件后通过 `Tab Groups > Add Selected Files to Group` 加入；动态子菜单优先显示最近使用的组，超过上限时使用 `More Groups…`。每个组的 Header 右键菜单提供 `Add Files…`，使用 IDE 原生多文件选择器。所有入口均按 URL 去重、忽略目录，并保留文件可属于多个组的语义。
+
+### 9.5 按 Tab Group 调用 TortoiseSVN / TortoiseGit 提交
+
+组 Header 的右键菜单在后台扫描每个有效本地文件的最近工作副本标记：`.svn` 目录识别为 SVN，`.git` 目录或 Git worktree 的 `.git` 标记文件识别为 Git。该策略不依赖 IDE 是否启用了 Git/Subversion 插件，也不把缺失、目录、非本地 VFS 文件或工作副本外文件传给外部客户端。
+
+识别结果按 **VCS 类型 + 工作副本根目录** 分组；因此同一 Tab Group 即使包含多个独立仓库，也只会看到各自独立的提交入口，绝不会把它们合并成一次提交。菜单只在对应 Tortoise 客户端可定位时显示，客户端按环境变量、标准安装目录、注册表 `ProcPath` 与 `PATH` 查找：
+
+- `Commit with TortoiseSVN (N)` 使用 `TortoiseProc.exe /command:commit`；多个路径生成 `/pathfile`。该文件必须是 UTF-16LE、无 BOM、仅 LF 换行，并在启动前 round-trip 校验，避免 TortoiseSVN 将目录路径误判为文件。
+- `Commit with TortoiseGit (N)` 使用 `TortoiseGitProc.exe /command:commit`；官方命令行规定多个路径合并为一个以 `*` 分隔的 `/path:` 参数，不复用 SVN 的 `/pathfile` 协议。
+
+该功能只唤出用户已安装的外部 GUI，绝不自动执行 commit、保存 Document 或修改 IDE 内置 VCS 配置。工作副本扫描和注册表查找均在后台线程进行；菜单准备完成后才在 EDT 显示。

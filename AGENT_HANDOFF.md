@@ -18,7 +18,7 @@
 Repository root: T:\Projects\IdeaTabManager
 Git branch: main
 Remote: https://github.com/Whalesea-Gustav/IdeaTabManager
-Initial state: empty Git repository; no source files and no commits
+Baseline: Phase 0 scaffold and Phase 1 persistence/restoration are committed; Phase 2 UI/Action work follows
 Product: JetBrains Tab Groups / context workspace plugin
 Primary IDE: Rider 2026.2
 Secondary target: generic IntelliJ Platform IDEs
@@ -260,15 +260,6 @@ Get-ChildItem "$env:LOCALAPPDATA\Programs" -Directory |
 
 ## 8. 后续 Agent 的首个建议任务
 
-从阶段 0 开始，而不是直接写 Tool Window。
+Phase 0 与 Phase 1 已完成。继续阶段 2：以现有 `TabGroupProjectState`、`TabGroupRestorer`、`TabGroupsPanel` 和 `actions/` 为唯一实现路径，完成 Tool Window 细节、右键菜单和 Rider Sandbox 手动验收。
 
-第一提交应只包含：
-
-1. Gradle Kotlin IntelliJ Platform 插件骨架；
-2. 合法的 `plugin.xml`；
-3. 一个可显示的空 `Tab Groups` Tool Window；
-4. 一个项目级 `PersistentStateComponent` 空壳；
-5. 构建、测试和结构验证通过；
-6. 简短 README，明确 P0 非破坏性切换语义。
-
-骨架验证成功后，再按“模型/恢复 → Action → UI → DnD”的顺序推进。不要把持久化、复杂 UI、原生 Tab 拦截和 Marketplace 发布堆到同一个首次提交中。
+不要重新创建第二套 Service 或 Tool Window，也不要把原生 Tab 拦截、Tool Window DnD、Focus Mode 或 Marketplace 发布混入这一阶段。

@@ -1,0 +1,5 @@
+<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M2.5 4.25H8.5L10 5.75H13.5V12.5H2.5V4.25Z" stroke="#AFB1B3" stroke-width="1.35" stroke-linejoin="round"/>
+  <path d="M4.5 2.5H10L11.5 4" stroke="#AFB1B3" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M8 6.75V10M6.5 8.5L8 10L9.5 8.5M5.75 11.5H10.25" stroke="#AFB1B3" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

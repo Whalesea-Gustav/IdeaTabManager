@@ -2,13 +2,18 @@
 
 `IdeaTabManager` 是一个面向 JetBrains IDE 的工作上下文插件：将当前打开的代码文件保存为可命名、可着色、可持久化的 Tab Group，并在之后恢复对应文件、活动文件和光标位置。
 
-当前仓库已具备可构建的 Phase 0 脚手架：
+当前可构建版本为 **0.2.0**，已提供完整的 Tab Group 日常工作流：
 
 - Kotlin + IntelliJ Platform Gradle Plugin；
 - Rider 2026.2（Build 262）编译基线；
 - Java 25 工具链与 Kotlin 2.4.0（与 Rider 2026.2 平台基线一致）；
-- `Tab Groups` 左侧 Tool Window 空壳；
-- 项目级 `workspace.xml` 持久化服务空壳；
+- `Tab Groups` 左侧 Tool Window 组列表与管理操作；
+- 项目级 `workspace.xml` 持久化模型、CRUD、文件解析与非破坏性恢复；
+- 编辑器正文与 Tab 右键的组管理入口；
+- Open Tabs 与 Project View 的多文件批量编组；
+- Header 折叠、随机组色、可选注释，以及 F2 行内编辑标题/注释；
+- 安全的 Focus Group：只关闭组外的干净、未固定 Tab；
+- 按工作副本自动筛选并唤起 TortoiseSVN / TortoiseGit Commit 对话框；
 - Plugin ZIP 打包与结构校验任务；
 - GitHub Actions 的普通构建检查。
 
@@ -32,9 +37,8 @@ $env:Path = "$env:JAVA_HOME\bin;$env:Path"
 
 ## 开发顺序
 
-1. 完成 `model` 与 `service` 中的持久化 DTO、文件引用解析和恢复；
-2. 添加创建/激活/重命名/加入/移出组的 Action；
-3. 完成 Tool Window 的组列表与文件行；
-4. 最后在插件 Tool Window 内实现拖拽交互；不要拦截原生 Editor Tab 拖拽。
+1. 完成 Tool Window 的细节交互与 Rider Sandbox 手动验收；
+2. 覆盖空组、missing 文件、外部文件、中文路径和主题可读性；
+3. 最后在插件 Tool Window 内实现拖拽交互；不要拦截原生 Editor Tab 拖拽。
 
 除非用户明确要求，不要提交或推送本仓库。

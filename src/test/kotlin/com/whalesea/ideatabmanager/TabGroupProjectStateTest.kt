@@ -1,8 +1,11 @@
 package com.whalesea.ideatabmanager
 
 import com.intellij.openapi.project.Project
+import com.intellij.util.messages.MessageBus
 import com.whalesea.ideatabmanager.model.TabGroupState
+import com.whalesea.ideatabmanager.model.TabGroupRecord
 import com.whalesea.ideatabmanager.model.TabReference
+import com.whalesea.ideatabmanager.service.TabGroupChangeListener
 import com.whalesea.ideatabmanager.service.TabGroupProjectState
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -14,6 +17,16 @@ class TabGroupProjectStateTest {
     @Test
     fun `new project state starts at the first schema version`() {
         assertEquals(1, TabGroupState().schemaVersion)
+    }
+
+    @Test
+    fun `focus safety notice is acknowledged only once per project workspace`() {
+        val state = newState()
+
+        assertEquals(true, state.needsFocusSafetyNotice())
+        state.acknowledgeFocusSafetyNotice()
+
+        assertEquals(false, state.needsFocusSafetyNotice())
     }
 
     @Test
@@ -69,6 +82,45 @@ class TabGroupProjectStateTest {
     }
 
     @Test
+    fun `collapse state is persisted with the group record`() {
+        val state = newState()
+        val group = state.createGroup("Feature")
+
+        val collapsed = state.setGroupCollapsed(group.id, true)
+
+        assertEquals(true, collapsed?.isCollapsed)
+        assertEquals(true, state.groups().single().isCollapsed)
+    }
+
+    @Test
+    fun `group title and note are persisted as separate user-facing metadata`() {
+        val state = newState()
+        val group = state.createGroup("Combat")
+
+        state.renameGroup(group.id, "Combat Refactor")
+        state.updateGroupComment(group.id, "AI, hit reactions, and shared combat types")
+
+        val stored = state.groups().single()
+        assertEquals("Combat Refactor", stored.name)
+        assertEquals("AI, hit reactions, and shared combat types", stored.comment)
+    }
+
+    @Test
+    fun `recent groups are ordered by last use time`() {
+        val state = newState()
+        state.loadState(
+            TabGroupState(
+                groups = mutableListOf(
+                    TabGroupRecord(id = "older", name = "Older", lastUsedAtEpochMs = 100),
+                    TabGroupRecord(id = "recent", name = "Recent", lastUsedAtEpochMs = 200),
+                ),
+            ),
+        )
+
+        assertEquals(listOf("recent", "older"), state.recentGroups().map { it.id })
+    }
+
+    @Test
     fun `blank group names and color IDs are rejected`() {
         val state = newState()
 
@@ -76,12 +128,21 @@ class TabGroupProjectStateTest {
         assertFailsWith<IllegalArgumentException> { state.createGroup("Feature", " ") }
     }
 
-    private fun newState(): TabGroupProjectState = TabGroupProjectState(
-        Proxy.newProxyInstance(
+    private fun newState(): TabGroupProjectState {
+        val messageBus = Proxy.newProxyInstance(
+            MessageBus::class.java.classLoader,
+            arrayOf(MessageBus::class.java),
+        ) { _, method, _ ->
+            if (method.name == "syncPublisher") TabGroupChangeListener { } else null
+        } as MessageBus
+        val project = Proxy.newProxyInstance(
             Project::class.java.classLoader,
             arrayOf(Project::class.java),
-        ) { _, _, _ -> null } as Project,
-    )
+        ) { _, method, _ ->
+            if (method.name == "getMessageBus") messageBus else null
+        } as Project
+        return TabGroupProjectState(project)
+    }
 
     private fun reference(url: String): TabReference = TabReference(
         fileUrl = url,
