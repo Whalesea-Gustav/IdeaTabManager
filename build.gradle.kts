@@ -1,5 +1,8 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile
+import org.gradle.api.tasks.SourceSetContainer
+import org.gradle.api.tasks.testing.Test
+import org.gradle.kotlin.dsl.getByType
 import java.io.File
 
 plugins {
@@ -39,11 +42,10 @@ dependencies {
         pluginVerifier()
     }
 
-    // Rider 2026.2's JUnit session listener requires a current, aligned JUnit Platform runtime.
-    // kotlin("test") alone resolves JUnit Platform 1.10.x, which fails while the CI test JVM
-    // instantiates com.intellij.tests.JUnit5TestSessionListener.
+    // Keep Kotlin's test annotations on the JUnit 5 API and align the complete
+    // launcher/engine set used by the platform-independent test task below.
     testImplementation(platform("org.junit:junit-bom:5.13.4"))
-    testImplementation(kotlin("test"))
+    testImplementation(kotlin("test-junit5"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
@@ -82,8 +84,27 @@ intellijPlatform {
 }
 
 tasks {
-    test {
+    // The IntelliJ Platform plugin decorates the default `test` task with an IDE
+    // sandbox and test-framework listener. These tests only cover serializable
+    // state and Tortoise invocation helpers, so keep them on a plain JUnit JVM.
+    // This also avoids loading the incompatible IDE listener shipped by some
+    // Linux Rider archives in GitHub Actions.
+    val testSourceSet = project.extensions.getByType<SourceSetContainer>().getByName("test")
+    val unitTest = register<Test>("unitTest") {
+        group = "verification"
+        description = "Runs the plugin's platform-independent unit tests."
         useJUnitPlatform()
+        dependsOn("testClasses")
+        testClassesDirs = testSourceSet.output.classesDirs
+        // Production classes reference IntelliJ APIs. Add only the platform
+        // classpath; do not add the platform test runtime, which registers the
+        // problematic LauncherSessionListener through ServiceLoader.
+        classpath = testSourceSet.runtimeClasspath + configurations.getByName("intellijPlatformClasspath")
+    }
+
+    test {
+        enabled = false
+        dependsOn(unitTest)
     }
 
     named("buildSearchableOptions") {
