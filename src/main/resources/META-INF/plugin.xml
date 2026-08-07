@@ -9,6 +9,13 @@
   ]]></description>
 
   <change-notes><![CDATA[
+    <h3>0.2.1 — Compact tab selection</h3>
+    <ul>
+      <li>Replaced the persistent Open Tabs checklist with <b>Save Selected Tabs</b>, keeping the Tool Window focused on groups.</li>
+      <li>Select open files in a dedicated dialog with active-tab preselection plus <b>Select All</b> and <b>Clear</b> controls.</li>
+      <li>Create a new group or add the selected files to an existing group directly from the selection dialog.</li>
+      <li>Placed group titles and notes side by side in the Header for more compact scanning.</li>
+    </ul>
     <h3>0.2.0 — Tab Group workflows and Tortoise commits</h3>
     <ul>
       <li>Manage named, colored, persistent Tab Groups from the <b>Tab Groups</b> Tool Window.</li>

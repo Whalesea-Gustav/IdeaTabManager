@@ -2,7 +2,7 @@
 
 `IdeaTabManager` 是一个面向 JetBrains IDE 的工作上下文插件：将当前打开的代码文件保存为可命名、可着色、可持久化的 Tab Group，并在之后恢复对应文件、活动文件和光标位置。
 
-当前可构建版本为 **0.2.0**，已提供完整的 Tab Group 日常工作流：
+当前可构建版本为 **0.2.1**，已提供完整的 Tab Group 日常工作流：
 
 - Kotlin + IntelliJ Platform Gradle Plugin；
 - Rider 2026.2（Build 262）编译基线；
@@ -10,8 +10,8 @@
 - `Tab Groups` 左侧 Tool Window 组列表与管理操作；
 - 项目级 `workspace.xml` 持久化模型、CRUD、文件解析与非破坏性恢复；
 - 编辑器正文与 Tab 右键的组管理入口；
-- Open Tabs 与 Project View 的多文件批量编组；
-- Header 折叠、随机组色、可选注释，以及 F2 行内编辑标题/注释；
+- `Save Selected Tabs` 弹窗与 Project View 的多文件批量编组；
+- Header 折叠、随机组色、左右布局的标题/注释，以及 F2 行内编辑；
 - 安全的 Focus Group：只关闭组外的干净、未固定 Tab；
 - 按工作副本自动筛选并唤起 TortoiseSVN / TortoiseGit Commit 对话框；
 - Plugin ZIP 打包与结构校验任务；

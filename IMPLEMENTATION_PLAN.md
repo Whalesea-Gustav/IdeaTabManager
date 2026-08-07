@@ -360,6 +360,7 @@ data class TabDragPayload(
 
 - `0.1.0`：工程与持久化基线；
 - `0.2.0`：可用的 Tool Window 工作流、批量编组、Focus Group 与 Tortoise 提交入口；
+- `0.2.1`：紧凑的 Selected Tabs 弹窗工作流与横向 Group Header；
 - `0.3.0`：Tool Window 拖拽、导入导出等高级能力；
 - 修复版本使用 patch，例如 `0.1.1`。
 
@@ -373,11 +374,11 @@ data class TabDragPayload(
 
 ### 9.2 Open Tabs 批量编组
 
-Tool Window 顶部提供 `Open Tabs` 镜像区，使用勾选多选。用户可从所选文件创建组，或将所有所选文件一次加入已有组。该区域只是当前打开编辑器的操作入口，不能在 `fileClosed` 时反向删除工作组引用。
+Tool Window 工具栏提供 `Save All Tabs` 与 `Save Selected Tabs`。后者打开一个模态多选窗口，默认勾选当前活动文件，并提供 `Select All` / `Clear`；用户可从所选文件创建组，或将它们一次加入已有组。这样主 Tool Window 保持紧凑，不会因大量打开文件而被常驻勾选列表挤占。该区域只是当前打开编辑器的操作入口，不能在 `fileClosed` 时反向删除工作组引用。
 
 ### 9.3 标题、注释与折叠
 
-每个组持久化 `name`（标题）、`comment`（单行注释）和 `isCollapsed`。Header 展示标题、注释和文件数量；选中标题或注释后按 `F2` 进入对应文本的行内编辑，`Enter` 提交，`Escape` 取消。组操作收纳到 Header 右键菜单。
+每个组持久化 `name`（标题）、`comment`（单行注释）和 `isCollapsed`。Header 在同一行展示左侧标题与右侧灰色注释，便于快速扫描；选中标题或注释后按 `F2` 进入对应文本的行内编辑，`Enter` 提交，`Escape` 取消。组操作收纳到 Header 右键菜单。
 
 ### 9.4 特定文件批量加入
 

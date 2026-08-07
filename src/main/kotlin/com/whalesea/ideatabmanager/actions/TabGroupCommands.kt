@@ -13,6 +13,7 @@ import com.whalesea.ideatabmanager.model.TabGroupRecord
 import com.whalesea.ideatabmanager.model.TabReference
 import com.whalesea.ideatabmanager.service.TabGroupProjectState
 import com.whalesea.ideatabmanager.toolwindow.TabGroupColorPalette
+import com.whalesea.ideatabmanager.toolwindow.OpenTabsSelectionDialog
 
 /** Shared UI commands so editor actions and Tool Window buttons have identical semantics. */
 object TabGroupCommands {
@@ -30,6 +31,15 @@ object TabGroupCommands {
             state.createGroup(name, TabGroupColorPalette.randomColorId(), captured.tabs, captured.activeFileUrl)
             notify(project, "Saved ${captured.tabs.size} open tab(s) to '$name'.")
         }
+    }
+
+    fun selectOpenTabs(project: Project) {
+        val captured = project.service<TabGroupProjectState>().captureOpenTabs()
+        if (captured.tabs.isEmpty()) {
+            notify(project, "Open one or more files before selecting tabs.", NotificationType.INFORMATION)
+            return
+        }
+        OpenTabsSelectionDialog(project, captured.tabs, captured.activeFileUrl).show()
     }
 
     fun createFromCurrentFile(project: Project, file: VirtualFile) {

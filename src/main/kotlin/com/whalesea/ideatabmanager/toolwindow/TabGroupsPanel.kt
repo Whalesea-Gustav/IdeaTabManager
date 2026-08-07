@@ -7,17 +7,13 @@ import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.actionSystem.DefaultActionGroup
-import com.intellij.openapi.fileEditor.FileEditorManager
-import com.intellij.openapi.fileEditor.FileEditorManagerListener
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.popup.JBPopupFactory
-import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.ui.JBColor
 import com.intellij.ui.SimpleColoredComponent
 import com.intellij.ui.SimpleTextAttributes
 import com.intellij.ui.awt.RelativePoint
-import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPanel
 import com.intellij.ui.components.JBScrollPane
@@ -33,7 +29,6 @@ import com.whalesea.ideatabmanager.tortoise.TortoiseCommitService
 import com.whalesea.ideatabmanager.tortoise.TortoiseCommitTarget
 import java.awt.BorderLayout
 import java.awt.Component
-import java.awt.FlowLayout
 import java.awt.Font
 import java.awt.event.FocusAdapter
 import java.awt.event.FocusEvent
@@ -53,7 +48,6 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
     private val groupsPanel = JBPanel<JBPanel<*>>(VerticalLayout(JBUI.scale(6))).apply {
         border = JBUI.Borders.empty(8)
     }
-    private val selectedOpenTabUrls = linkedSetOf<String>()
     private var selectedGroupId: String? = null
     private var selectedHeaderField = HeaderField.TITLE
     private var inlineEdit: InlineEdit? = null
@@ -65,11 +59,6 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
         add(JBScrollPane(groupsPanel).apply { border = JBUI.Borders.empty() }, BorderLayout.CENTER)
         val connection = project.messageBus.connect(this)
         connection.subscribe(TabGroupChangeListener.TOPIC, TabGroupChangeListener { renderGroups() })
-        connection.subscribe(FileEditorManagerListener.FILE_EDITOR_MANAGER, object : FileEditorManagerListener {
-            override fun fileOpened(source: FileEditorManager, file: VirtualFile) = renderGroups()
-
-            override fun fileClosed(source: FileEditorManager, file: VirtualFile) = renderGroups()
-        })
         renderGroups()
     }
 
@@ -89,18 +78,25 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
         "TabGroupsToolbar",
         DefaultActionGroup().apply {
             add(object : DumbAwareAction(
-                "New Empty Group",
+                "Create Empty Group",
                 "Create an empty tab group",
                 TabGroupIcons.newEmptyGroup,
             ) {
                 override fun actionPerformed(event: AnActionEvent) = TabGroupCommands.createEmptyGroup(project)
             })
             add(object : DumbAwareAction(
-                "Save Current Tabs",
+                "Save All Tabs",
                 "Save all open editor tabs as a tab group",
                 TabGroupIcons.saveCurrentTabs,
             ) {
                 override fun actionPerformed(event: AnActionEvent) = TabGroupCommands.createFromOpenTabs(project)
+            })
+            add(object : DumbAwareAction(
+                "Save Selected Tabs",
+                "Choose open editor tabs to create or update a tab group",
+                TabGroupIcons.saveSelectedTabs,
+            ) {
+                override fun actionPerformed(event: AnActionEvent) = TabGroupCommands.selectOpenTabs(project)
             })
         },
         true,
@@ -108,8 +104,7 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
 
     private fun renderGroups() {
         groupsPanel.removeAll()
-        groupsPanel.add(createOpenTabsPanel())
-        groupsPanel.add(JBLabel("Tab Groups").apply { border = JBUI.Borders.emptyTop(8) })
+        groupsPanel.add(JBLabel("Tab Groups"))
 
         val groups = state.groups()
         if (groups.isEmpty()) {
@@ -122,45 +117,6 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
         groupsPanel.revalidate()
         groupsPanel.repaint()
     }
-
-    private fun createOpenTabsPanel(): JBPanel<JBPanel<*>> {
-        val captured = state.captureOpenTabs()
-        selectedOpenTabUrls.retainAll(captured.tabs.map { it.fileUrl }.toSet())
-        return JBPanel<JBPanel<*>>(BorderLayout()).apply {
-            border = JBUI.Borders.compound(
-                JBUI.Borders.customLine(JBUI.CurrentTheme.CustomFrameDecorations.separatorForeground()),
-                JBUI.Borders.empty(6),
-            )
-            add(JBLabel("Open Tabs  ${captured.tabs.size}").apply { font = font.deriveFont(Font.BOLD) }, BorderLayout.NORTH)
-            add(JBPanel<JBPanel<*>>(VerticalLayout(JBUI.scale(2))).apply {
-                if (captured.tabs.isEmpty()) {
-                    add(JBLabel("No open files").apply { border = JBUI.Borders.empty(4) })
-                } else {
-                    captured.tabs.forEach { reference ->
-                        add(JBCheckBox(reference.lastKnownName, selectedOpenTabUrls.contains(reference.fileUrl)).apply {
-                            toolTipText = reference.projectRelativePath ?: reference.fileUrl
-                            border = JBUI.Borders.emptyLeft(4)
-                            addActionListener {
-                                if (isSelected) selectedOpenTabUrls += reference.fileUrl else selectedOpenTabUrls -= reference.fileUrl
-                            }
-                        })
-                    }
-                }
-            }, BorderLayout.CENTER)
-            add(JBPanel<JBPanel<*>>(FlowLayout(FlowLayout.LEFT, JBUI.scale(4), 0)).apply {
-                add(textButton("New Group from Selected") {
-                    val selected = selectedReferences(captured.tabs)
-                    val activeUrl = captured.activeFileUrl?.takeIf { active -> selected.any { it.fileUrl == active } }
-                    TabGroupCommands.createFromSelectedTabs(project, selected, activeUrl)
-                })
-                add(textButton("Add Selected to Group") {
-                    TabGroupCommands.addSelectedTabsToGroup(project, selectedReferences(captured.tabs))
-                })
-            }, BorderLayout.SOUTH)
-        }
-    }
-
-    private fun selectedReferences(tabs: List<TabReference>): List<TabReference> = tabs.filter { it.fileUrl in selectedOpenTabUrls }
 
     private fun createGroupPanel(group: TabGroupRecord): JBPanel<JBPanel<*>> = JBPanel<JBPanel<*>>(BorderLayout()).apply {
         val selected = group.id == selectedGroupId
@@ -194,20 +150,17 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
         }
         val titleComponent = textComponent(group, HeaderField.TITLE)
         val commentComponent = textComponent(group, HeaderField.COMMENT)
-        val textPanel = JBPanel<JBPanel<*>>(VerticalLayout(0)).apply {
-            add(titleComponent)
-            add(commentComponent)
-        }
         val groupTitle = JBPanel<JBPanel<*>>(BorderLayout()).apply {
             add(dot, BorderLayout.WEST)
-            add(textPanel, BorderLayout.CENTER)
+            add(titleComponent, BorderLayout.CENTER)
+            add(commentComponent, BorderLayout.EAST)
         }
         val titlePanel = JBPanel<JBPanel<*>>(BorderLayout()).apply {
             add(collapseButton, BorderLayout.WEST)
             add(groupTitle, BorderLayout.CENTER)
         }
         add(titlePanel, BorderLayout.CENTER)
-        listOf<Component>(this, titlePanel, groupTitle, textPanel, dot).forEach { attachGroupHeaderInteractions(it, group, null) }
+        listOf<Component>(this, titlePanel, groupTitle, dot).forEach { attachGroupHeaderInteractions(it, group, null) }
         attachGroupHeaderInteractions(titleComponent, group, HeaderField.TITLE)
         attachGroupHeaderInteractions(commentComponent, group, HeaderField.COMMENT)
         collapseButton.addMouseListener(object : MouseAdapter() {
@@ -224,10 +177,14 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
             HeaderField.COMMENT -> group.comment.ifBlank { "Add note" }
         }
         return JBLabel(text).apply {
-            border = if (field == HeaderField.TITLE) JBUI.Borders.emptyLeft(6) else JBUI.Borders.empty(1, 6, 0, 0)
+            border = if (field == HeaderField.TITLE) JBUI.Borders.emptyLeft(6) else JBUI.Borders.emptyLeft(12)
             if (field == HeaderField.TITLE) font = font.deriveFont(Font.BOLD)
             if (field == HeaderField.COMMENT) foreground = JBColor.GRAY
-            toolTipText = if (field == HeaderField.COMMENT && group.comment.isBlank()) "Select this note and press F2 to edit" else null
+            toolTipText = when {
+                field == HeaderField.COMMENT && group.comment.isBlank() -> "Select this note and press F2 to edit"
+                field == HeaderField.COMMENT -> group.comment
+                else -> null
+            }
         }
     }
 
@@ -383,11 +340,6 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
 
     private fun groupAction(text: String, action: () -> Unit): DumbAwareAction = object : DumbAwareAction(text) {
         override fun actionPerformed(event: AnActionEvent) = action()
-    }
-
-    private fun textButton(text: String, action: () -> Unit): JButton = JButton(text).apply {
-        isFocusPainted = false
-        addActionListener { action() }
     }
 
     private enum class HeaderField { TITLE, COMMENT }

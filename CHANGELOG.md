@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.1] - 2026-08-07
+
+### Changed
+
+- Replaced the always-visible Open Tabs checkbox list with a compact `Save Selected Tabs` toolbar workflow.
+- `Save Selected Tabs` now opens a modal multi-select list of currently open files, defaults to the active file, and provides `Select All` and `Clear` controls.
+- The selection dialog keeps both subset workflows: create a new group or add the selected files to an existing group.
+- Changed group headers to show title and note side by side, keeping the header more compact for scanning.
+
 ## [0.2.0] - 2026-08-07
 
 ### Added
