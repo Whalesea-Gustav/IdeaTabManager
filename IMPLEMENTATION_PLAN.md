@@ -363,6 +363,7 @@ data class TabDragPayload(
 - `0.2.1`：紧凑的 Selected Tabs 弹窗工作流与横向 Group Header；
 - `0.2.2`：组内 Open Tabs 快速加入、Grip 拖拽排序与 Header 间距优化；
 - `0.2.3`：修复嵌入式 Tool Window 中的 Group Grip 拖拽排序，统一插入指示与实际落点计算；
+- `0.2.4`：以多 Tab 编辑器与共享分组色带重绘 Tool Window 和插件图标，强化多 Tab 管理识别；
 - `0.3.0`：Tool Window 拖拽、导入导出等高级能力；
 - 修复版本使用 patch，例如 `0.1.1`。
 

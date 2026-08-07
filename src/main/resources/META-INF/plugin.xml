@@ -9,6 +9,11 @@
   ]]></description>
 
   <change-notes><![CDATA[
+    <h3>0.2.4 — Clearer multi-tab identity</h3>
+    <ul>
+      <li>Redesigned the Tool Window and plugin icons as a three-tab editor surface with one shared group rail.</li>
+      <li>The icon now communicates managed tab groups at compact Tool Window and Plugin Manager sizes, with dedicated light and dark variants.</li>
+    </ul>
     <h3>0.2.3 — Reliable group reordering</h3>
     <ul>
       <li>Fixed Group Header drag reordering in embedded Tool Windows by tracking the pointer directly inside the Tab Groups panel.</li>

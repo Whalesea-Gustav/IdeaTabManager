@@ -1,0 +1,10 @@
+<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Dark-theme counterpart: the same three tab headers and one shared group rail. -->
+  <rect x="2.25" y="5.25" width="15.5" height="11.5" rx="1.75" stroke="#AFB1B3" stroke-width="1.5"/>
+  <path d="M3.5 9H16.5" stroke="#AFB1B3" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M4.5 9V7.4C4.5 6.85 4.95 6.4 5.5 6.4H7.15C7.7 6.4 8.15 6.85 8.15 7.4V9" stroke="#AFB1B3" stroke-width="1.25" stroke-linejoin="round"/>
+  <path d="M8.4 9V7.4C8.4 6.85 8.85 6.4 9.4 6.4H11.05C11.6 6.4 12.05 6.85 12.05 7.4V9" stroke="#AFB1B3" stroke-width="1.25" stroke-linejoin="round"/>
+  <path d="M12.3 9V7.4C12.3 6.85 12.75 6.4 13.3 6.4H14.95C15.5 6.4 15.95 6.85 15.95 7.4V9" stroke="#AFB1B3" stroke-width="1.25" stroke-linejoin="round"/>
+  <path d="M5.25 12H14.75" stroke="#5C9BFF" stroke-width="2" stroke-linecap="round"/>
+  <path d="M6.25 14.5H11.75" stroke="#AFB1B3" stroke-width="1.25" stroke-linecap="round"/>
+</svg>

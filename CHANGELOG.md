@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.4] - 2026-08-07
+
+### Changed
+
+- Redesigned the Tool Window and plugin icons around a three-tab editor surface with a shared group rail, making the multi-tab management purpose legible at compact sizes.
+
 ## [0.2.3] - 2026-08-07
 
 ### Fixed
