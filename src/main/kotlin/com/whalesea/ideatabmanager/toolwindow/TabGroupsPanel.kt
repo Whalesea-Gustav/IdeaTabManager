@@ -199,6 +199,7 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
             minimumSize = preferredSize
         }
         val titleComponent = textComponent(group, HeaderField.TITLE)
+        val countComponent = groupCountComponent(group)
         val commentComponent = textComponent(group, HeaderField.COMMENT)
         val groupTitle = JBPanel<JBPanel<*>>().apply {
             // Do not use BorderLayout.CENTER for the title: it expands to all remaining width and
@@ -207,6 +208,8 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
             add(dot.apply { alignmentY = 0.5f })
             add(Box.createHorizontalStrut(JBUI.scale(4)))
             add(titleComponent.apply { alignmentY = 0.5f })
+            add(Box.createHorizontalStrut(JBUI.scale(6)))
+            add(countComponent.apply { alignmentY = 0.5f })
             add(Box.createHorizontalStrut(JBUI.scale(4)))
             add(commentComponent.apply { alignmentY = 0.5f })
             add(Box.createHorizontalGlue())
@@ -220,7 +223,7 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
             add(groupTitle, BorderLayout.CENTER)
         }
         add(titlePanel, BorderLayout.CENTER)
-        listOf<Component>(this, titlePanel, groupTitle, dot).forEach { attachGroupHeaderInteractions(it, group, null) }
+        listOf<Component>(this, titlePanel, groupTitle, dot, countComponent).forEach { attachGroupHeaderInteractions(it, group, null) }
         attachGroupHeaderInteractions(titleComponent, group, HeaderField.TITLE)
         attachGroupHeaderInteractions(commentComponent, group, HeaderField.COMMENT)
         collapseButton.addMouseListener(object : MouseAdapter() {
@@ -309,7 +312,7 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
     private fun textComponent(group: TabGroupRecord, field: HeaderField): JComponent {
         if (inlineEdit == InlineEdit(group.id, field)) return createInlineEditor(group, field)
         val text = when (field) {
-            HeaderField.TITLE -> "${group.name}  ${group.tabs.size}"
+            HeaderField.TITLE -> group.name
             HeaderField.COMMENT -> group.comment.ifBlank { "Add note" }
         }
         return JBLabel(text).apply {
@@ -322,6 +325,13 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
                 else -> null
             }
         }
+    }
+
+    private fun groupCountComponent(group: TabGroupRecord): JComponent = JBLabel("num=${group.tabs.size}").apply {
+        // Keep the count legible without competing with the editable group title.
+        font = font.deriveFont(Font.PLAIN, (font.size2D - 1f).coerceAtLeast(10f))
+        foreground = JBColor(0x737B87, 0x8A939F)
+        border = JBUI.Borders.empty()
     }
 
     private fun createInlineEditor(group: TabGroupRecord, field: HeaderField): JBTextField {
