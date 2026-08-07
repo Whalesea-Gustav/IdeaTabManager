@@ -39,6 +39,8 @@ import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import javax.swing.AbstractAction
 import javax.swing.BorderFactory
+import javax.swing.Box
+import javax.swing.BoxLayout
 import javax.swing.JButton
 import javax.swing.JComponent
 import javax.swing.JLabel
@@ -198,10 +200,16 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
         }
         val titleComponent = textComponent(group, HeaderField.TITLE)
         val commentComponent = textComponent(group, HeaderField.COMMENT)
-        val groupTitle = JBPanel<JBPanel<*>>(BorderLayout()).apply {
-            add(dot, BorderLayout.WEST)
-            add(titleComponent, BorderLayout.CENTER)
-            add(commentComponent, BorderLayout.EAST)
+        val groupTitle = JBPanel<JBPanel<*>>().apply {
+            // Do not use BorderLayout.CENTER for the title: it expands to all remaining width and
+            // pushes the note to the far right, making a small intended gap look very large.
+            layout = BoxLayout(this, BoxLayout.X_AXIS)
+            add(dot.apply { alignmentY = 0.5f })
+            add(Box.createHorizontalStrut(JBUI.scale(4)))
+            add(titleComponent.apply { alignmentY = 0.5f })
+            add(Box.createHorizontalStrut(JBUI.scale(4)))
+            add(commentComponent.apply { alignmentY = 0.5f })
+            add(Box.createHorizontalGlue())
         }
         val titlePanel = JBPanel<JBPanel<*>>(BorderLayout()).apply {
             add(JBPanel<JBPanel<*>>(java.awt.FlowLayout(java.awt.FlowLayout.LEFT, JBUI.scale(2), 0)).apply {
@@ -305,7 +313,7 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
             HeaderField.COMMENT -> group.comment.ifBlank { "Add note" }
         }
         return JBLabel(text).apply {
-            border = JBUI.Borders.emptyLeft(6)
+            border = JBUI.Borders.empty()
             if (field == HeaderField.TITLE) font = font.deriveFont(Font.BOLD)
             if (field == HeaderField.COMMENT) foreground = JBColor.GRAY
             toolTipText = when {

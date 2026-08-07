@@ -9,6 +9,11 @@
   ]]></description>
 
   <change-notes><![CDATA[
+    <h3>0.2.5 — Compact Header metadata</h3>
+    <ul>
+      <li>Fixed Header layout so the title no longer expands across the whole Tool Window and pushes the note away.</li>
+      <li>Group titles and notes now remain adjacent with a compact, stable gap at every Tool Window width.</li>
+    </ul>
     <h3>0.2.4 — Clearer multi-tab identity</h3>
     <ul>
       <li>Redesigned the Tool Window and plugin icons as a three-tab editor surface with one shared group rail.</li>

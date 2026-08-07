@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.5] - 2026-08-07
+
+### Fixed
+
+- Kept Group Header titles and notes adjacent with a compact 4dp gap instead of allowing the title's layout slot to push the note to the far edge of the Tool Window.
+
 ## [0.2.4] - 2026-08-07
 
 ### Changed
