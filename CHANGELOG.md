@@ -8,6 +8,14 @@ All notable changes to this project are documented in this file.
 
 - Redesigned the Tool Window and plugin icons around a three-tab editor surface with a shared group rail, making the multi-tab management purpose legible at compact sizes.
 
+### Added
+
+- Approval-gated GitHub Actions workflows for tag-based GitHub Releases and JetBrains Marketplace publishing, with Java 25 release builds and `default` / `eap` channel support.
+
+### Fixed
+
+- GitHub Actions now marks the Gradle Wrapper executable after checkout, preventing Linux runners from failing with `./gradlew: Permission denied` when the repository is edited on Windows.
+
 ## [0.2.3] - 2026-08-07
 
 ### Fixed

@@ -55,6 +55,13 @@ tasks.withType<KotlinJvmCompile>().configureEach {
 intellijPlatform {
     buildSearchableOptions = false
 
+    publishing {
+        token = providers.environmentVariable("PUBLISH_TOKEN")
+        channels = providers.gradleProperty("pluginChannel")
+            .map { listOf(it) }
+            .orElse(listOf("default"))
+    }
+
     pluginConfiguration {
         ideaVersion {
             sinceBuild = "262"
