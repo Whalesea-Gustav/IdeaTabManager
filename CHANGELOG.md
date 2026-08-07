@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.6] - 2026-08-07
+
+### Fixed
+
+- Aligned the test runtime with JUnit 5.13.4 so Rider 2026.2's JUnit session listener can start on GitHub Actions.
+
 ## [0.2.5] - 2026-08-07
 
 ### Fixed

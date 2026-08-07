@@ -8,7 +8,7 @@ plugins {
 }
 
 group = "com.whalesea"
-version = providers.gradleProperty("pluginVersion").getOrElse("0.2.5")
+version = providers.gradleProperty("pluginVersion").getOrElse("0.2.6")
 
 val riderSdkPath = providers.gradleProperty("riderSdkPath")
     .orElse(providers.provider {
@@ -39,7 +39,13 @@ dependencies {
         pluginVerifier()
     }
 
+    // Rider 2026.2's JUnit session listener requires a current, aligned JUnit Platform runtime.
+    // kotlin("test") alone resolves JUnit Platform 1.10.x, which fails while the CI test JVM
+    // instantiates com.intellij.tests.JUnit5TestSessionListener.
+    testImplementation(platform("org.junit:junit-bom:5.13.4"))
     testImplementation(kotlin("test"))
+    testImplementation("org.junit.jupiter:junit-jupiter")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 kotlin {

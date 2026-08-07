@@ -365,6 +365,7 @@ data class TabDragPayload(
 - `0.2.3`：修复嵌入式 Tool Window 中的 Group Grip 拖拽排序，统一插入指示与实际落点计算；
 - `0.2.4`：以多 Tab 编辑器与共享分组色带重绘 Tool Window 和插件图标，强化多 Tab 管理识别；
 - `0.2.5`：修复横向 Header 中标题的拉伸布局，标题与注释保持紧凑稳定的间距；
+- `0.2.6`：对齐 Rider 2026.2 的 JUnit Platform 测试运行时，修复 GitHub Actions 测试监听器启动失败；
 - `0.3.0`：Tool Window 拖拽、导入导出等高级能力；
 - 修复版本使用 patch，例如 `0.1.1`。
 

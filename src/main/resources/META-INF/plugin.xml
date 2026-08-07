@@ -9,6 +9,10 @@
   ]]></description>
 
   <change-notes><![CDATA[
+    <h3>0.2.6 — Reliable CI validation</h3>
+    <ul>
+      <li>Aligned the JUnit Platform test runtime with Rider 2026.2 so GitHub Actions can initialize the IDE test listener reliably.</li>
+    </ul>
     <h3>0.2.5 — Compact Header metadata</h3>
     <ul>
       <li>Fixed Header layout so the title no longer expands across the whole Tool Window and pushes the note away.</li>
