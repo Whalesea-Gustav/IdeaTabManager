@@ -2,6 +2,26 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.3] - 2026-08-07
+
+### Fixed
+
+- Reworked Group Header reordering to use direct pointer tracking inside the plugin-owned Tool Window instead of Swing cross-component drop routing, which could fail in embedded IDE Tool Windows.
+- The blue before/after insertion indicator and the persisted drop position now use the same Group-panel coordinate system; reordering to the end of the list is covered by a unit test.
+
+## [0.2.2] - 2026-08-07
+
+### Added
+
+- `Add Open Tabs…` in the group Header menu for directly multi-selecting current editor tabs into that group.
+- A six-dot Header grip for persistent Tab Group drag-reordering, including a visible before/after insertion line.
+- Cached Tortoise client discovery, Group commit classification, and working-copy roots to keep Group context menus responsive.
+- Replaced the oversized system move pointer over the Group reorder grip with a compact custom four-way drag cursor.
+
+### Changed
+
+- Reduced the Header note's minimum left inset to tighten title/note spacing.
+
 ## [0.2.1] - 2026-08-07
 
 ### Changed

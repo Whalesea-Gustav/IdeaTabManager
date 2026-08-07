@@ -42,6 +42,15 @@ object TabGroupCommands {
         OpenTabsSelectionDialog(project, captured.tabs, captured.activeFileUrl).show()
     }
 
+    fun chooseAndAddOpenTabs(project: Project, group: TabGroupRecord) {
+        val captured = project.service<TabGroupProjectState>().captureOpenTabs()
+        if (captured.tabs.isEmpty()) {
+            notify(project, "Open one or more files before selecting tabs.", NotificationType.INFORMATION)
+            return
+        }
+        OpenTabsSelectionDialog(project, captured.tabs, captured.activeFileUrl, group).show()
+    }
+
     fun createFromCurrentFile(project: Project, file: VirtualFile) {
         val state = project.service<TabGroupProjectState>()
         requestGroupName(project, file.name)?.let { name ->
@@ -132,6 +141,14 @@ object TabGroupCommands {
         chooseGroup(project, "Add Selected Tabs to Group", state.groups())?.let { group ->
             addReferencesToGroup(project, group, tabs)
         }
+    }
+
+    fun addSelectedTabsToGroup(project: Project, group: TabGroupRecord, tabs: List<TabReference>) {
+        if (tabs.isEmpty()) {
+            notify(project, "Select one or more open tabs first.", NotificationType.INFORMATION)
+            return
+        }
+        addReferencesToGroup(project, group, tabs)
     }
 
     fun addFilesToGroup(project: Project, group: TabGroupRecord, files: Collection<VirtualFile>) {

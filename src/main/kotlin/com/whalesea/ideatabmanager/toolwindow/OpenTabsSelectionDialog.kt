@@ -10,6 +10,7 @@ import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.panels.VerticalLayout
 import com.intellij.util.ui.JBUI
 import com.whalesea.ideatabmanager.actions.TabGroupCommands
+import com.whalesea.ideatabmanager.model.TabGroupRecord
 import com.whalesea.ideatabmanager.model.TabReference
 import java.awt.BorderLayout
 import java.awt.FlowLayout
@@ -23,6 +24,7 @@ class OpenTabsSelectionDialog(
     private val project: Project,
     private val tabs: List<TabReference>,
     private val activeFileUrl: String?,
+    private val targetGroup: TabGroupRecord? = null,
 ) : DialogWrapper(project) {
     private val rows = tabs.map { reference ->
         TabRow(reference, JBCheckBox(reference.lastKnownName, reference.fileUrl == activeFileUrl).apply {
@@ -39,8 +41,8 @@ class OpenTabsSelectionDialog(
     }
 
     init {
-        title = "Save Selected Tabs"
-        setOKButtonText("Create Group")
+        title = targetGroup?.let { "Add Open Tabs to ${it.name}" } ?: "Save Selected Tabs"
+        setOKButtonText(if (targetGroup == null) "Create Group" else "Add to Group")
         addToExistingGroupAction.isEnabled = project.service<com.whalesea.ideatabmanager.service.TabGroupProjectState>().groups().isNotEmpty()
         init()
     }
@@ -65,7 +67,9 @@ class OpenTabsSelectionDialog(
             preferredSize = JBUI.size(500, minOf(400, 72 + rows.size * 42))
         }
         return JBPanel<JBPanel<*>>(BorderLayout(0, JBUI.scale(8))).apply {
-            add(JBLabel("Choose the open files to include in a tab group."), BorderLayout.NORTH)
+            val prompt = targetGroup?.let { "Choose the open files to add to '${it.name}'." }
+                ?: "Choose the open files to include in a tab group."
+            add(JBLabel(prompt), BorderLayout.NORTH)
             add(scrollPane, BorderLayout.CENTER)
             add(JBPanel<JBPanel<*>>(FlowLayout(FlowLayout.LEFT, JBUI.scale(4), 0)).apply {
                 add(JButton("Select All").apply { addActionListener { rows.forEach { it.checkBox.isSelected = true } } })
@@ -74,11 +78,19 @@ class OpenTabsSelectionDialog(
         }
     }
 
-    override fun createActions(): Array<Action> = arrayOf(okAction, addToExistingGroupAction, cancelAction)
+    override fun createActions(): Array<Action> = if (targetGroup == null) {
+        arrayOf(okAction, addToExistingGroupAction, cancelAction)
+    } else {
+        arrayOf(okAction, cancelAction)
+    }
 
     override fun doOKAction() {
         val selected = selectedTabsOrShowError() ?: return
         close(OK_EXIT_CODE)
+        targetGroup?.let { group ->
+            TabGroupCommands.addSelectedTabsToGroup(project, group, selected)
+            return
+        }
         val selectedActiveUrl = activeFileUrl?.takeIf { active -> selected.any { it.fileUrl == active } }
         TabGroupCommands.createFromSelectedTabs(project, selected, selectedActiveUrl)
     }

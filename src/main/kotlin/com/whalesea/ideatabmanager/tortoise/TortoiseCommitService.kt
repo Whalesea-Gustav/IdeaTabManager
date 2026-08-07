@@ -10,15 +10,31 @@ import java.nio.charset.Charset
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
 /** Finds installed external clients and opens their commit dialogs on a pooled thread. */
 object TortoiseCommitService {
     private val log = Logger.getInstance(TortoiseCommitService::class.java)
+    private val targetCache = ConcurrentHashMap<GroupCacheKey, CachedTargets>()
 
-    fun availableTargets(group: TabGroupRecord): List<TortoiseCommitTarget> =
-        TortoiseWorkingCopyClassifier.classifyReferences(group.tabs)
-            .filter { TortoiseClientLocator.find(it.kind) != null }
+    fun availableTargets(group: TabGroupRecord): List<TortoiseCommitTarget> = classifiedTargets(group)
+        .filter { TortoiseClientLocator.find(it.kind) != null }
+
+    /** Prepares expensive working-copy and client discovery before a user opens a group context menu. */
+    fun warmUp(groups: Collection<TabGroupRecord>) {
+        groups.forEach(::availableTargets)
+    }
+
+    private fun classifiedTargets(group: TabGroupRecord): List<TortoiseCommitTarget> {
+        val key = GroupCacheKey(group.id, group.updatedAtEpochMs, group.tabs.map { it.fileUrl })
+        targetCache[key]?.takeUnless(CachedTargets::isExpired)?.let { return it.targets }
+
+        val targets = TortoiseWorkingCopyClassifier.classifyReferences(group.tabs)
+        targetCache[key] = CachedTargets(targets, System.nanoTime())
+        targetCache.keys.removeIf { cachedKey -> cachedKey.id == group.id && cachedKey != key }
+        return targets
+    }
 
     fun launch(project: Project, target: TortoiseCommitTarget) {
         val immutableTarget = target.copy(paths = target.paths.toList())
@@ -52,10 +68,34 @@ object TortoiseCommitService {
             }
         }
     }
+
+    private data class GroupCacheKey(val id: String, val updatedAtEpochMs: Long, val tabUrls: List<String>)
+
+    private data class CachedTargets(val targets: List<TortoiseCommitTarget>, val cachedAtNanos: Long) {
+        fun isExpired(): Boolean = System.nanoTime() - cachedAtNanos >= TARGET_CACHE_TTL_NANOS
+    }
+
+    private val TARGET_CACHE_TTL_NANOS = TimeUnit.SECONDS.toNanos(20)
 }
 
 internal object TortoiseClientLocator {
+    private val executableCache = ConcurrentHashMap<TortoiseVcsKind, CachedExecutable>()
+
     fun find(kind: TortoiseVcsKind): Path? {
+        executableCache[kind]?.takeUnless(CachedExecutable::isExpired)?.let { cached ->
+            return cached.path?.takeIf { path -> Files.isRegularFile(path) }
+        }
+        synchronized(this) {
+            executableCache[kind]?.takeUnless(CachedExecutable::isExpired)?.let { cached ->
+                return cached.path?.takeIf { path -> Files.isRegularFile(path) }
+            }
+            val discovered = discover(kind)
+            executableCache[kind] = CachedExecutable(discovered, System.nanoTime())
+            return discovered
+        }
+    }
+
+    private fun discover(kind: TortoiseVcsKind): Path? {
         if (!isWindows()) return null
         val candidates = mutableListOf<Path>()
         val environment = System.getenv()
@@ -97,4 +137,10 @@ internal object TortoiseClientLocator {
     }
 
     private fun isWindows(): Boolean = System.getProperty("os.name", "").lowercase(Locale.ROOT).contains("windows")
+
+    private data class CachedExecutable(val path: Path?, val cachedAtNanos: Long) {
+        fun isExpired(): Boolean = System.nanoTime() - cachedAtNanos >= EXECUTABLE_CACHE_TTL_NANOS
+    }
+
+    private val EXECUTABLE_CACHE_TTL_NANOS = TimeUnit.SECONDS.toNanos(60)
 }

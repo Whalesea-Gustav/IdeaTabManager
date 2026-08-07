@@ -9,6 +9,17 @@
   ]]></description>
 
   <change-notes><![CDATA[
+    <h3>0.2.3 — Reliable group reordering</h3>
+    <ul>
+      <li>Fixed Group Header drag reordering in embedded Tool Windows by tracking the pointer directly inside the Tab Groups panel.</li>
+      <li>The blue insertion line and the saved drop position now use the same target Group coordinates, including moves to the end of the list.</li>
+    </ul>
+    <h3>0.2.2 — Group ordering and quick add</h3>
+    <ul>
+      <li>Use <b>Add Open Tabs…</b> on a group Header to select currently open files and add them directly to that group.</li>
+      <li>Drag the new six-dot Header grip to reorder Tab Groups. The insertion line shows whether the group will be placed before or after the target.</li>
+      <li>Refined compact Header spacing between the title and note.</li>
+    </ul>
     <h3>0.2.1 — Compact tab selection</h3>
     <ul>
       <li>Replaced the persistent Open Tabs checklist with <b>Save Selected Tabs</b>, keeping the Tool Window focused on groups.</li>

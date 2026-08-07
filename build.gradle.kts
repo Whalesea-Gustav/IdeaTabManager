@@ -8,7 +8,7 @@ plugins {
 }
 
 group = "com.whalesea"
-version = providers.gradleProperty("pluginVersion").getOrElse("0.2.1")
+version = providers.gradleProperty("pluginVersion").getOrElse("0.2.3")
 
 val riderSdkPath = providers.gradleProperty("riderSdkPath")
     .orElse(providers.provider {

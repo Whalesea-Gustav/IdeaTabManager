@@ -128,6 +128,23 @@ class TabGroupProjectState(private val project: Project) : PersistentStateCompon
         if (removed) notifyGroupsChanged()
     }
 
+    /** Reorders the persisted group list without affecting recent-use metadata or group contents. */
+    fun moveGroupBefore(groupId: String, beforeGroupId: String?): Boolean {
+        val sourceIndex = state.groups.indexOfFirst { it.id == groupId }
+        if (sourceIndex < 0 || beforeGroupId == groupId) return false
+
+        val beforeIndex = beforeGroupId?.let { id -> state.groups.indexOfFirst { it.id == id } } ?: -1
+        if (beforeGroupId != null && beforeIndex < 0) return false
+        if (beforeIndex == sourceIndex || beforeIndex == sourceIndex + 1) return false
+        if (beforeGroupId == null && sourceIndex == state.groups.lastIndex) return false
+
+        val group = state.groups.removeAt(sourceIndex)
+        val destinationIndex = beforeGroupId?.let { id -> state.groups.indexOfFirst { it.id == id } } ?: state.groups.size
+        state.groups.add(destinationIndex, group)
+        notifyGroupsChanged()
+        return true
+    }
+
     fun addTabToGroup(groupId: String, reference: TabReference): TabGroupRecord? {
         require(reference.fileUrl.isNotBlank()) { "Tab reference URL must not be blank." }
         return addTabsToGroup(groupId, listOf(reference))

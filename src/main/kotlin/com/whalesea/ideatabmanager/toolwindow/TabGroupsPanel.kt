@@ -32,15 +32,19 @@ import java.awt.Component
 import java.awt.Font
 import java.awt.event.FocusAdapter
 import java.awt.event.FocusEvent
+import java.awt.event.InputEvent
 import java.awt.event.KeyAdapter
 import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import javax.swing.AbstractAction
+import javax.swing.BorderFactory
 import javax.swing.JButton
 import javax.swing.JComponent
+import javax.swing.JLabel
 import javax.swing.KeyStroke
 import javax.swing.SwingUtilities
+import javax.swing.border.Border
 
 /** Native Swing Tool Window for selecting, saving, and restoring coding contexts. */
 class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(BorderLayout()), Disposable {
@@ -51,6 +55,8 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
     private var selectedGroupId: String? = null
     private var selectedHeaderField = HeaderField.TITLE
     private var inlineEdit: InlineEdit? = null
+    private var activeDropIndicator: DropIndicator? = null
+    private var draggedGroupId: String? = null
 
     init {
         isFocusable = true
@@ -62,7 +68,10 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
         renderGroups()
     }
 
-    override fun dispose() = Unit
+    override fun dispose() {
+        draggedGroupId = null
+        clearDropIndicator()
+    }
 
     private fun installKeyboardShortcuts() {
         getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(KeyStroke.getKeyStroke(KeyEvent.VK_F2, 0), "editSelectedGroupField")
@@ -113,9 +122,16 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
             })
         } else {
             groups.forEach { groupsPanel.add(createGroupPanel(it)) }
+            warmUpTortoiseCommitTargets(groups)
         }
         groupsPanel.revalidate()
         groupsPanel.repaint()
+    }
+
+    private fun warmUpTortoiseCommitTargets(groups: List<TabGroupRecord>) {
+        ApplicationManager.getApplication().executeOnPooledThread {
+            TortoiseCommitService.warmUp(groups)
+        }
     }
 
     private fun createGroupPanel(group: TabGroupRecord): JBPanel<JBPanel<*>> = JBPanel<JBPanel<*>>(BorderLayout()).apply {
@@ -126,7 +142,9 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
         )
         isOpaque = selected
         if (selected) background = JBColor(0xF2F7FF, 0x333E4D)
-        add(createGroupHeader(group), BorderLayout.NORTH)
+        putClientProperty(GROUP_PANEL_ID_PROPERTY, group.id)
+        val header = createGroupHeader(group)
+        add(header, BorderLayout.NORTH)
         if (!group.isCollapsed) add(createTabList(group), BorderLayout.CENTER)
     }
 
@@ -143,6 +161,36 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
             maximumSize = preferredSize
             addActionListener { TabGroupCommands.setCollapsed(project, group, !group.isCollapsed) }
         }
+        val dragHandle = JLabel(TabGroupIcons.groupDragHandle).apply {
+            toolTipText = "Drag to reorder tab group"
+            cursor = TabGroupCursors.reorder
+            preferredSize = JBUI.size(16, 20)
+            minimumSize = preferredSize
+            maximumSize = preferredSize
+            val dragListener = object : MouseAdapter() {
+                override fun mousePressed(event: MouseEvent) {
+                    draggedGroupId = null
+                    showGroupMenuIfRequested(event, group)
+                }
+
+                override fun mouseReleased(event: MouseEvent) {
+                    val wasDragging = draggedGroupId == group.id
+                    if (wasDragging) completeGroupReorder(event.component, event.point, group.id)
+                    draggedGroupId = null
+                    clearDropIndicator()
+                    if (!wasDragging) showGroupMenuIfRequested(event, group)
+                }
+
+                override fun mouseDragged(event: MouseEvent) {
+                    if (event.modifiersEx and InputEvent.BUTTON1_DOWN_MASK != 0) {
+                        draggedGroupId = group.id
+                        updateGroupReorderTarget(event.component, event.point, group.id)
+                    }
+                }
+            }
+            addMouseListener(dragListener)
+            addMouseMotionListener(dragListener)
+        }
         val dot = JBPanel<JBPanel<*>>().apply {
             background = color
             preferredSize = JBUI.size(10, 10)
@@ -156,7 +204,11 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
             add(commentComponent, BorderLayout.EAST)
         }
         val titlePanel = JBPanel<JBPanel<*>>(BorderLayout()).apply {
-            add(collapseButton, BorderLayout.WEST)
+            add(JBPanel<JBPanel<*>>(java.awt.FlowLayout(java.awt.FlowLayout.LEFT, JBUI.scale(2), 0)).apply {
+                border = JBUI.Borders.emptyRight(8)
+                add(dragHandle)
+                add(collapseButton)
+            }, BorderLayout.WEST)
             add(groupTitle, BorderLayout.CENTER)
         }
         add(titlePanel, BorderLayout.CENTER)
@@ -170,6 +222,82 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
         })
     }
 
+    private fun showDropIndicator(target: JComponent, position: DropPosition) {
+        if (activeDropIndicator?.target == target && activeDropIndicator?.position == position) return
+        clearDropIndicator()
+        val originalBorder = target.border
+        val indicatorBorder = BorderFactory.createMatteBorder(
+            if (position == DropPosition.BEFORE) JBUI.scale(2) else 0,
+            0,
+            if (position == DropPosition.AFTER) JBUI.scale(2) else 0,
+            0,
+            JBColor(0x4B8DF8, 0x4B8DF8),
+        )
+        target.border = BorderFactory.createCompoundBorder(indicatorBorder, originalBorder)
+        activeDropIndicator = DropIndicator(target, originalBorder, position)
+        target.revalidate()
+        target.repaint()
+    }
+
+    private fun clearDropIndicator() {
+        val indicator = activeDropIndicator ?: return
+        indicator.target.border = indicator.originalBorder
+        indicator.target.revalidate()
+        indicator.target.repaint()
+        activeDropIndicator = null
+    }
+
+    /**
+     * Handles group reordering directly from the plugin-owned Swing hierarchy.
+     *
+     * TransferHandler based DnD is unreliable inside embedded Tool Windows: the DropTarget can be a
+     * Header child while its coordinates belong to that child rather than the Group panel. Resolving
+     * the target from the current pointer keeps the interaction local and makes before/after feedback
+     * agree with the persisted order.
+     */
+    private fun updateGroupReorderTarget(source: Component, sourcePoint: java.awt.Point, sourceGroupId: String) {
+        val target = groupPanelAt(source, sourcePoint) ?: run {
+            clearDropIndicator()
+            return
+        }
+        val targetGroupId = target.getClientProperty(GROUP_PANEL_ID_PROPERTY) as? String ?: return
+        if (targetGroupId == sourceGroupId) {
+            clearDropIndicator()
+            return
+        }
+        showDropIndicator(target, dropPosition(source, sourcePoint, target))
+    }
+
+    private fun completeGroupReorder(source: Component, sourcePoint: java.awt.Point, sourceGroupId: String) {
+        val target = groupPanelAt(source, sourcePoint) ?: return
+        val targetGroupId = target.getClientProperty(GROUP_PANEL_ID_PROPERTY) as? String ?: return
+        if (targetGroupId == sourceGroupId) return
+
+        val groups = state.groups()
+        val targetIndex = groups.indexOfFirst { it.id == targetGroupId }
+        if (targetIndex < 0) return
+        val beforeGroupId = when (dropPosition(source, sourcePoint, target)) {
+            DropPosition.BEFORE -> targetGroupId
+            DropPosition.AFTER -> groups.getOrNull(targetIndex + 1)?.id
+        }
+        state.moveGroupBefore(sourceGroupId, beforeGroupId)
+    }
+
+    private fun groupPanelAt(source: Component, sourcePoint: java.awt.Point): JComponent? {
+        val pointInGroups = SwingUtilities.convertPoint(source, sourcePoint, groupsPanel)
+        var candidate: Component? = SwingUtilities.getDeepestComponentAt(groupsPanel, pointInGroups.x, pointInGroups.y)
+        while (candidate != null && candidate !== groupsPanel) {
+            if (candidate is JComponent && candidate.getClientProperty(GROUP_PANEL_ID_PROPERTY) != null) return candidate
+            candidate = candidate.parent
+        }
+        return null
+    }
+
+    private fun dropPosition(source: Component, sourcePoint: java.awt.Point, target: JComponent): DropPosition {
+        val pointInTarget = SwingUtilities.convertPoint(source, sourcePoint, target)
+        return if (pointInTarget.y < target.height / 2) DropPosition.BEFORE else DropPosition.AFTER
+    }
+
     private fun textComponent(group: TabGroupRecord, field: HeaderField): JComponent {
         if (inlineEdit == InlineEdit(group.id, field)) return createInlineEditor(group, field)
         val text = when (field) {
@@ -177,7 +305,7 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
             HeaderField.COMMENT -> group.comment.ifBlank { "Add note" }
         }
         return JBLabel(text).apply {
-            border = if (field == HeaderField.TITLE) JBUI.Borders.emptyLeft(6) else JBUI.Borders.emptyLeft(12)
+            border = JBUI.Borders.emptyLeft(6)
             if (field == HeaderField.TITLE) font = font.deriveFont(Font.BOLD)
             if (field == HeaderField.COMMENT) foreground = JBColor.GRAY
             toolTipText = when {
@@ -291,6 +419,7 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
             add(groupAction("Open Group") { TabGroupCommands.activate(project, group) })
             add(groupAction("Focus Group (Safe)") { TabGroupCommands.focus(project, group) })
             add(groupAction("Update from Current Open Tabs") { TabGroupCommands.updateFromOpenTabs(project, group) })
+            add(groupAction("Add Open Tabs…") { TabGroupCommands.chooseAndAddOpenTabs(project, group) })
             add(groupAction("Add Files…") { TabGroupCommands.chooseAndAddFiles(project, group) })
             if (commitTargets.isNotEmpty()) {
                 addSeparator()
@@ -344,5 +473,13 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
 
     private enum class HeaderField { TITLE, COMMENT }
 
+    private enum class DropPosition { BEFORE, AFTER }
+
+    private data class DropIndicator(val target: JComponent, val originalBorder: Border?, val position: DropPosition)
+
     private data class InlineEdit(val groupId: String, val field: HeaderField)
+
+    private companion object {
+        const val GROUP_PANEL_ID_PROPERTY = "IdeaTabManager.GroupPanelId"
+    }
 }

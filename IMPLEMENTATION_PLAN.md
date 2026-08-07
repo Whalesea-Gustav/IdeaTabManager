@@ -361,6 +361,8 @@ data class TabDragPayload(
 - `0.1.0`：工程与持久化基线；
 - `0.2.0`：可用的 Tool Window 工作流、批量编组、Focus Group 与 Tortoise 提交入口；
 - `0.2.1`：紧凑的 Selected Tabs 弹窗工作流与横向 Group Header；
+- `0.2.2`：组内 Open Tabs 快速加入、Grip 拖拽排序与 Header 间距优化；
+- `0.2.3`：修复嵌入式 Tool Window 中的 Group Grip 拖拽排序，统一插入指示与实际落点计算；
 - `0.3.0`：Tool Window 拖拽、导入导出等高级能力；
 - 修复版本使用 patch，例如 `0.1.1`。
 
@@ -382,7 +384,7 @@ Tool Window 工具栏提供 `Save All Tabs` 与 `Save Selected Tabs`。后者打
 
 ### 9.4 特定文件批量加入
 
-Project View 多选文件后通过 `Tab Groups > Add Selected Files to Group` 加入；动态子菜单优先显示最近使用的组，超过上限时使用 `More Groups…`。每个组的 Header 右键菜单提供 `Add Files…`，使用 IDE 原生多文件选择器。所有入口均按 URL 去重、忽略目录，并保留文件可属于多个组的语义。
+Project View 多选文件后通过 `Tab Groups > Add Selected Files to Group` 加入；动态子菜单优先显示最近使用的组，超过上限时使用 `More Groups…`。每个组的 Header 右键菜单提供 `Add Open Tabs…`，通过当前编辑器 Tab 的多选弹窗直接加入该组；同时保留 `Add Files…`，使用 IDE 原生多文件选择器添加磁盘文件。所有入口均按 URL 去重、忽略目录，并保留文件可属于多个组的语义。
 
 ### 9.5 按 Tab Group 调用 TortoiseSVN / TortoiseGit 提交
 
@@ -394,3 +396,11 @@ Project View 多选文件后通过 `Tab Groups > Add Selected Files to Group` �
 - `Commit with TortoiseGit (N)` 使用 `TortoiseGitProc.exe /command:commit`；官方命令行规定多个路径合并为一个以 `*` 分隔的 `/path:` 参数，不复用 SVN 的 `/pathfile` 协议。
 
 该功能只唤出用户已安装的外部 GUI，绝不自动执行 commit、保存 Document 或修改 IDE 内置 VCS 配置。工作副本扫描和注册表查找均在后台线程进行；菜单准备完成后才在 EDT 显示。
+
+### 9.6 Group 排序
+
+每个 Group Header 在折叠按钮左侧提供六点 grip。仅 grip 可发起 Tool Window 内的拖拽，避免标题、注释、展开按钮和文件行的原有操作被误触。拖拽通过插件自有 Panel 内的直接鼠标位置追踪完成，不依赖嵌入式 Tool Window 中不稳定的跨组件 `TransferHandler` drop 路由。拖到其他 Group 上半区或下半区时显示对应插入线；放下后将来源组插入目标前或后。排序直接重排 `state.groups` 的持久化列表，不新增排序字段，不影响组内文件、最近使用时间或任何编辑器状态。
+
+### 9.7 Tortoise 菜单性能
+
+Group Header 右键菜单的 Tortoise 提交入口使用两级短期缓存：目录到最近 Git/SVN 工作副本根的缓存，避免同一根目录下的文件重复向上扫描 `.git` / `.svn`；以及 Group 到分类提交目标的缓存。TortoiseSVN/Git 可执行文件定位同样缓存，避免每次右键重复启动 `reg.exe` 并扫描 `PATH`。Tool Window 渲染后在后台预热已有组；缓存仅影响发现速度，不放宽工作副本或客户端可用性判断。

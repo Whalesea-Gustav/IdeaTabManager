@@ -6,6 +6,8 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.util.LinkedHashMap
 import java.util.LinkedHashSet
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
 
 /** A single external commit dialog target. Paths always belong to one working-copy root. */
 data class TortoiseCommitTarget(
@@ -25,6 +27,8 @@ data class TortoiseCommitTarget(
  * the user, while the user remains in control of whether to add or commit them.
  */
 internal object TortoiseWorkingCopyClassifier {
+    private val directoryCache = ConcurrentHashMap<Path, CachedWorkingCopy>()
+
     fun classifyReferences(references: Collection<TabReference>): List<TortoiseCommitTarget> {
         val paths = references.mapNotNull { reference ->
             val file = VirtualFileManager.getInstance().findFileByUrl(reference.fileUrl) ?: return@mapNotNull null
@@ -57,13 +61,47 @@ internal object TortoiseWorkingCopyClassifier {
 
     private fun findWorkingCopy(file: Path): WorkingCopy? {
         var directory = file.parent ?: return null
+        val inspectedDirectories = mutableListOf<Path>()
         while (true) {
-            when {
-                hasGitMarker(directory) -> return WorkingCopy(TortoiseVcsKind.GIT, directory)
-                hasSvnMarker(directory) -> return WorkingCopy(TortoiseVcsKind.SVN, directory)
+            cachedEntry(directory)?.let { cached ->
+                cacheInspectedDirectories(inspectedDirectories, cached.workingCopy)
+                return cached.workingCopy
             }
-            directory = directory.parent ?: return null
+            inspectedDirectories.add(directory)
+            when {
+                hasGitMarker(directory) -> {
+                    val workingCopy = WorkingCopy(TortoiseVcsKind.GIT, directory)
+                    cacheInspectedDirectories(inspectedDirectories, workingCopy)
+                    return workingCopy
+                }
+                hasSvnMarker(directory) -> {
+                    val workingCopy = WorkingCopy(TortoiseVcsKind.SVN, directory)
+                    cacheInspectedDirectories(inspectedDirectories, workingCopy)
+                    return workingCopy
+                }
+            }
+            val parent = directory.parent
+            if (parent == null) {
+                cacheInspectedDirectories(inspectedDirectories, null)
+                return null
+            }
+            directory = parent
         }
+    }
+
+    private fun cachedEntry(directory: Path): CachedWorkingCopy? {
+        val cached = directoryCache[directory] ?: return null
+        if (cached.isExpired()) {
+            directoryCache.remove(directory, cached)
+            return null
+        }
+        return cached
+    }
+
+    private fun cacheInspectedDirectories(directories: Collection<Path>, workingCopy: WorkingCopy?) {
+        if (directories.isEmpty()) return
+        val entry = CachedWorkingCopy(workingCopy, System.nanoTime())
+        directories.forEach { directoryCache[it] = entry }
     }
 
     private fun hasGitMarker(directory: Path): Boolean = runCatching {
@@ -78,4 +116,10 @@ internal object TortoiseWorkingCopyClassifier {
     private data class WorkingCopy(val kind: TortoiseVcsKind, val root: Path)
 
     private data class WorkingCopyKey(val kind: TortoiseVcsKind, val root: Path)
+
+    private data class CachedWorkingCopy(val workingCopy: WorkingCopy?, val cachedAtNanos: Long) {
+        fun isExpired(): Boolean = System.nanoTime() - cachedAtNanos >= DIRECTORY_CACHE_TTL_NANOS
+    }
+
+    private val DIRECTORY_CACHE_TTL_NANOS = TimeUnit.SECONDS.toNanos(20)
 }

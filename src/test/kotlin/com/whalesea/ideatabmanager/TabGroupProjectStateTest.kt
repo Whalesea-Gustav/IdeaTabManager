@@ -121,6 +121,22 @@ class TabGroupProjectStateTest {
     }
 
     @Test
+    fun `moving a group changes only persisted display order`() {
+        val state = newState()
+        val first = state.createGroup("First", "blue", listOf(reference("file:///project/First.kt")), null)
+        val second = state.createGroup("Second", "red", listOf(reference("file:///project/Second.kt")), null)
+        val third = state.createGroup("Third", "green", listOf(reference("file:///project/Third.kt")), null)
+
+        assertEquals(true, state.moveGroupBefore(third.id, first.id))
+        assertEquals(listOf(third.id, first.id, second.id), state.groups().map { it.id })
+        assertEquals(listOf("file:///project/Third.kt"), state.groups().first().tabs.map { it.fileUrl })
+        assertEquals(false, state.moveGroupBefore(third.id, first.id))
+        assertEquals(true, state.moveGroupBefore(third.id, null))
+        assertEquals(listOf(first.id, second.id, third.id), state.groups().map { it.id })
+        assertEquals(false, state.moveGroupBefore("missing", null))
+    }
+
+    @Test
     fun `blank group names and color IDs are rejected`() {
         val state = newState()
 
