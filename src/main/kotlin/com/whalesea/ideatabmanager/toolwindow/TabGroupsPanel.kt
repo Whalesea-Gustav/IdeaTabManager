@@ -197,6 +197,9 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
             background = color
             preferredSize = JBUI.size(10, 10)
             minimumSize = preferredSize
+            // BoxLayout otherwise treats a JPanel as horizontally expandable and lets
+            // the color marker consume the header space needed by the title metadata.
+            maximumSize = preferredSize
         }
         val titleComponent = textComponent(group, HeaderField.TITLE)
         val countComponent = groupCountComponent(group)

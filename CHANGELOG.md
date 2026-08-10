@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.8] - 2026-08-10
+
+### Fixed
+
+- Fixed the Group Header color marker expanding across the row and pushing the title, file count, and note out of place.
+
 ## [0.2.7] - 2026-08-10
 
 ### Changed

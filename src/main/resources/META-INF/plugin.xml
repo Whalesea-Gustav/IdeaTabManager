@@ -9,6 +9,10 @@
   ]]></description>
 
   <change-notes><![CDATA[
+    <h3>0.2.8 — Fixed Header color marker sizing</h3>
+    <ul>
+      <li>Fixed the Group Header color marker expanding across the row and crowding the title, <code>num={count}</code> file count, and note.</li>
+    </ul>
     <h3>0.2.7 — Refined Header file count</h3>
     <ul>
       <li>Group file counts now use a compact, muted <code>num={count}</code> label, keeping the editable group title visually primary.</li>
