@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.7] - 2026-08-10
+
+### Changed
+
+- Made the Group Header file count a compact, muted `num={count}` label so the editable group title remains the primary visual element.
+
 ## [0.2.6] - 2026-08-07
 
 ### Fixed

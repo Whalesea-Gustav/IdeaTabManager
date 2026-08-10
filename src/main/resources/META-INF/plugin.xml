@@ -9,6 +9,10 @@
   ]]></description>
 
   <change-notes><![CDATA[
+    <h3>0.2.7 — Refined Header file count</h3>
+    <ul>
+      <li>Group file counts now use a compact, muted <code>num={count}</code> label, keeping the editable group title visually primary.</li>
+    </ul>
     <h3>0.2.6 — Reliable CI validation</h3>
     <ul>
       <li>Aligned the JUnit Platform test runtime with Rider 2026.2 so GitHub Actions can initialize the IDE test listener reliably.</li>
