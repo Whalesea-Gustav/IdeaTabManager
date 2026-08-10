@@ -20,13 +20,17 @@ class TabGroupProjectStateTest {
     }
 
     @Test
-    fun `focus safety notice is acknowledged only once per project workspace`() {
+    fun `creating a group records an undo snapshot of the previous group state`() {
         val state = newState()
 
-        assertEquals(true, state.needsFocusSafetyNotice())
-        state.acknowledgeFocusSafetyNotice()
+        state.createGroup("Feature")
+        val undo = state.takeUndoOperation()
 
-        assertEquals(false, state.needsFocusSafetyNotice())
+        assertEquals(true, undo is com.whalesea.ideatabmanager.service.TabGroupUndoOperation.Groups)
+        val snapshot = (undo as com.whalesea.ideatabmanager.service.TabGroupUndoOperation.Groups).state
+        state.restoreGroups(snapshot)
+
+        assertEquals(emptyList(), state.groups())
     }
 
     @Test
@@ -79,6 +83,36 @@ class TabGroupProjectStateTest {
 
         assertEquals(listOf(second.fileUrl), updated?.tabs?.map { it.fileUrl })
         assertNull(updated?.activeFileUrl)
+    }
+
+    @Test
+    fun `moving a tab persists its position inside the group`() {
+        val state = newState()
+        val first = reference("file:///project/A.kt")
+        val second = reference("file:///project/B.kt")
+        val third = reference("file:///project/C.kt")
+        val group = state.createGroup("Feature", "blue", listOf(first, second, third), first.fileUrl)
+
+        assertEquals(true, state.moveTabBefore(group.id, third.fileUrl, first.fileUrl))
+        assertEquals(listOf(third.fileUrl, first.fileUrl, second.fileUrl), state.groups().single().tabs.map { it.fileUrl })
+        assertEquals(false, state.moveTabBefore(group.id, second.fileUrl, null))
+    }
+
+    @Test
+    fun `group mutations record an undo snapshot while reorder does not replace it`() {
+        val state = newState()
+        val first = reference("file:///project/A.kt")
+        val second = reference("file:///project/B.kt")
+        val group = state.createGroup("Feature", "blue", listOf(first), first.fileUrl)
+        state.takeUndoOperation()
+
+        state.addTabToGroup(group.id, second)
+        assertEquals(listOf(first.fileUrl), state.groups().single().tabs.take(1).map { it.fileUrl })
+        state.moveTabBefore(group.id, second.fileUrl, first.fileUrl)
+        val undo = state.takeUndoOperation() as com.whalesea.ideatabmanager.service.TabGroupUndoOperation.Groups
+
+        state.restoreGroups(undo.state)
+        assertEquals(listOf(first.fileUrl), state.groups().single().tabs.map { it.fileUrl })
     }
 
     @Test

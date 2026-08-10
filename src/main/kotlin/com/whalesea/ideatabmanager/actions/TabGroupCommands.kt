@@ -2,6 +2,7 @@ package com.whalesea.ideatabmanager.actions
 
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
+import com.intellij.icons.AllIcons
 import com.intellij.openapi.components.service
 import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
@@ -12,8 +13,13 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.whalesea.ideatabmanager.model.TabGroupRecord
 import com.whalesea.ideatabmanager.model.TabReference
 import com.whalesea.ideatabmanager.service.TabGroupProjectState
+import com.whalesea.ideatabmanager.service.TabGroupExternalTabService
+import com.whalesea.ideatabmanager.service.TabGroupRestorer
+import com.whalesea.ideatabmanager.service.TabGroupUndoOperation
 import com.whalesea.ideatabmanager.toolwindow.TabGroupColorPalette
+import com.whalesea.ideatabmanager.toolwindow.GroupExternalTabsDialog
 import com.whalesea.ideatabmanager.toolwindow.OpenTabsSelectionDialog
+import com.whalesea.ideatabmanager.toolwindow.SingleChoiceDialog
 
 /** Shared UI commands so editor actions and Tool Window buttons have identical semantics. */
 object TabGroupCommands {
@@ -79,8 +85,15 @@ object TabGroupCommands {
         }
     }
 
+    fun removeTabFromGroup(project: Project, group: TabGroupRecord, reference: TabReference) {
+        if (project.service<TabGroupProjectState>().removeTabFromGroup(group.id, reference.fileUrl) != null) {
+            notify(project, "Removed ${reference.lastKnownName.ifBlank { reference.fileUrl.substringAfterLast('/') }} from '${group.name}'.")
+        }
+    }
+
     fun activate(project: Project, group: TabGroupRecord) {
         val state = project.service<TabGroupProjectState>()
+        state.setOpenTabsUndo(state.captureOpenTabs())
         state.markGroupUsed(group.id)
         state.restoreGroup(group.id) { result ->
             if (result.missingTabs.isEmpty()) {
@@ -92,21 +105,71 @@ object TabGroupCommands {
         }
     }
 
-    fun focus(project: Project, group: TabGroupRecord) {
+    fun activateAndReviewOtherTabs(project: Project, group: TabGroupRecord) {
         val state = project.service<TabGroupProjectState>()
-        val confirmation = "Focus '${group.name}'? Clean tabs outside this group will close. Pinned and unsaved tabs stay open."
-        if (state.needsFocusSafetyNotice()) {
-            if (Messages.showYesNoDialog(project, confirmation, "Focus Tab Group", null) != Messages.YES) return
-            state.acknowledgeFocusSafetyNotice()
-        }
+        state.setOpenTabsUndo(state.captureOpenTabs())
         state.markGroupUsed(group.id)
-        state.focusGroup(group.id) { result ->
-            val kept = result.keptModifiedFileCount + result.keptPinnedFileCount
-            notify(
-                project,
-                "Focused '${group.name}': closed ${result.closedFileCount} tab(s), kept $kept protected tab(s).",
-                if (result.restoreResult.missingTabs.isEmpty()) NotificationType.INFORMATION else NotificationType.WARNING,
-            )
+        state.restoreGroup(group.id) {
+            val service = TabGroupExternalTabService(project)
+            val candidates = service.cleanExternalTabs(group)
+            if (candidates.isEmpty()) {
+                notify(project, "Opened '${group.name}'. There are no other open tabs without unsaved changes to close.")
+                return@restoreGroup
+            }
+            GroupExternalTabsDialog(project, group.name, candidates) { selected ->
+                val closeResult = service.closeCleanExternalTabs(group, selected.map { it.file })
+                val skipped = closeResult.skippedModifiedFileCount + closeResult.skippedNoLongerOpenCount
+                val message = if (skipped == 0) {
+                    "Opened '${group.name}' and closed ${closeResult.closedFileCount} selected tab(s)."
+                } else {
+                    "Opened '${group.name}', closed ${closeResult.closedFileCount} selected tab(s), and kept $skipped tab(s) with unsaved changes or no longer open."
+                }
+                notify(project, message, if (skipped == 0) NotificationType.INFORMATION else NotificationType.WARNING)
+            }.show()
+        }
+    }
+
+    fun reviewExternalTabs(project: Project, group: TabGroupRecord) {
+        val state = project.service<TabGroupProjectState>()
+        val service = TabGroupExternalTabService(project)
+        val candidates = service.cleanExternalTabs(group)
+        if (candidates.isEmpty()) {
+            notify(project, "There are no other open tabs without unsaved changes to close.")
+            return
+        }
+        GroupExternalTabsDialog(project, group.name, candidates) { selected ->
+            state.setOpenTabsUndo(state.captureOpenTabs())
+            val result = service.closeCleanExternalTabs(group, selected.map { it.file })
+            notify(project, "Closed ${result.closedFileCount} selected tab(s).")
+        }.show()
+    }
+
+    fun closeUnsafeExternalTabs(project: Project, group: TabGroupRecord) {
+        val state = project.service<TabGroupProjectState>()
+        val service = TabGroupExternalTabService(project)
+        val candidates = service.cleanExternalTabs(group)
+        if (candidates.isEmpty()) {
+            notify(project, "There are no other open tabs without unsaved changes to close.")
+            return
+        }
+        val confirmation = "Close all other tabs? This will close all ${candidates.size} currently open tabs not in '${group.name}' that have no unsaved changes. Tabs with unsaved changes will not be closed. Warning: the IDE does not let this plugin identify pinned tabs, so pinned tabs without unsaved changes may also be closed."
+        if (Messages.showYesNoDialog(project, confirmation, "Close Other Tabs (Unsafe)", null) != Messages.YES) return
+        state.setOpenTabsUndo(state.captureOpenTabs())
+        val result = service.closeCleanExternalTabs(group, candidates.map { it.file })
+        val skipped = result.skippedModifiedFileCount + result.skippedNoLongerOpenCount
+        val message = if (skipped == 0) {
+            "Closed ${result.closedFileCount} other tab(s)."
+        } else {
+            "Closed ${result.closedFileCount} other tab(s); kept $skipped tab(s) with unsaved changes or no longer open."
+        }
+        notify(project, message, if (skipped == 0) NotificationType.INFORMATION else NotificationType.WARNING)
+    }
+
+    fun undoLast(project: Project) {
+        val state = project.service<TabGroupProjectState>()
+        when (val operation = state.takeUndoOperation() ?: return) {
+            is TabGroupUndoOperation.Groups -> state.restoreGroups(operation.state)
+            is TabGroupUndoOperation.OpenTabs -> restoreOpenTabs(project, operation)
         }
     }
 
@@ -117,7 +180,7 @@ object TabGroupCommands {
     fun updateFromOpenTabs(project: Project, group: TabGroupRecord) {
         val updated = project.service<TabGroupProjectState>().updateGroupFromOpenTabs(group.id)
         if (updated != null) {
-            notify(project, "Updated '${group.name}' from ${updated.tabs.size} open tab(s).")
+            notify(project, "'${group.name}' now contains all ${updated.tabs.size} currently open tab(s).")
         }
     }
 
@@ -190,15 +253,16 @@ object TabGroupCommands {
     }
 
     fun changeColor(project: Project, group: TabGroupRecord) {
-        val selectedIndex = Messages.showChooseDialog(
+        val colorNames = TabGroupColorPalette.displayNames()
+        val dialog = SingleChoiceDialog(
             project,
-            "Group color:",
             "Change Tab Group Color",
-            null,
-            TabGroupColorPalette.displayNames(),
-            TabGroupColorPalette.displayName(group.colorId),
+            "Group color:",
+            colorNames,
+            colorNames.indexOf(TabGroupColorPalette.displayName(group.colorId)),
         )
-        if (selectedIndex < 0) return
+        dialog.show()
+        val selectedIndex = dialog.selectedIndex ?: return
         val displayName = TabGroupColorPalette.displayNames()[selectedIndex]
         project.service<TabGroupProjectState>().changeGroupColor(group.id, TabGroupColorPalette.idForDisplayName(displayName))
     }
@@ -227,6 +291,26 @@ object TabGroupCommands {
         notify(project, message)
     }
 
+    private fun restoreOpenTabs(project: Project, operation: TabGroupUndoOperation.OpenTabs) {
+        val snapshotGroup = TabGroupRecord(
+            id = "undo",
+            tabs = operation.tabs.map { it.copy() }.toMutableList(),
+            activeFileUrl = operation.activeFileUrl,
+        )
+        TabGroupRestorer(project).restore(snapshotGroup) { result ->
+            val externalService = TabGroupExternalTabService(project)
+            val extras = externalService.cleanExternalTabs(snapshotGroup)
+            val closeResult = externalService.closeCleanExternalTabs(snapshotGroup, extras.map { it.file })
+            val skipped = closeResult.skippedModifiedFileCount + closeResult.skippedNoLongerOpenCount
+            val message = if (skipped == 0) {
+                "Undid the last tab action: restored ${result.openedFileCount} previous tab(s), closed ${closeResult.closedFileCount} extra tab(s)."
+            } else {
+                "Undid the last tab action: restored ${result.openedFileCount} previous tab(s), closed ${closeResult.closedFileCount} extra tab(s), kept $skipped changed or unavailable tab(s)."
+            }
+            notify(project, message, if (skipped == 0) NotificationType.INFORMATION else NotificationType.WARNING)
+        }
+    }
+
     private fun requestGroupName(project: Project, suggestedName: String = "New Tab Group"): String? =
         Messages.showInputDialog(project, "Group name:", "Create Tab Group", null, suggestedName, null)
             ?.trim()
@@ -238,7 +322,9 @@ object TabGroupCommands {
             return null
         }
         val labels = groups.map { "${it.name} — ${it.tabs.size} file(s) — ${it.id.take(6)}" }.toTypedArray()
-        val selectedIndex = Messages.showChooseDialog(project, "Choose a tab group:", title, null, labels, labels.first())
+        val dialog = SingleChoiceDialog(project, title, "Choose a tab group:", labels)
+        dialog.show()
+        val selectedIndex = dialog.selectedIndex ?: return null
         return groups.getOrNull(selectedIndex)
     }
 

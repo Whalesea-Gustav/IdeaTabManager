@@ -1,6 +1,7 @@
 package com.whalesea.ideatabmanager.toolwindow
 
 import com.intellij.ide.DataManager
+import com.intellij.icons.AllIcons
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.ActionManager
@@ -59,6 +60,7 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
     private var inlineEdit: InlineEdit? = null
     private var activeDropIndicator: DropIndicator? = null
     private var draggedGroupId: String? = null
+    private var draggedTab: DraggedTab? = null
 
     init {
         isFocusable = true
@@ -72,6 +74,7 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
 
     override fun dispose() {
         draggedGroupId = null
+        draggedTab = null
         clearDropIndicator()
     }
 
@@ -88,6 +91,17 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
     private fun createToolbar() = ActionManager.getInstance().createActionToolbar(
         "TabGroupsToolbar",
         DefaultActionGroup().apply {
+            add(object : DumbAwareAction(
+                "Undo Last Group Action",
+                "Undo the last Group creation, open, or close action",
+                com.intellij.icons.AllIcons.Actions.Undo,
+            ) {
+                override fun update(event: AnActionEvent) {
+                    event.presentation.isEnabled = project.getService(TabGroupProjectState::class.java).hasUndo()
+                }
+
+                override fun actionPerformed(event: AnActionEvent) = TabGroupCommands.undoLast(project)
+            })
             add(object : DumbAwareAction(
                 "Create Empty Group",
                 "Create an empty tab group",
@@ -384,20 +398,115 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
         if (group.tabs.isEmpty()) {
             add(JBLabel("Empty group").apply { border = JBUI.Borders.empty(4, 16) })
         } else {
-            group.tabs.forEach { add(createTabLine(it)) }
+            group.tabs.forEach { add(createTabLine(group, it)) }
         }
     }
 
-    private fun createTabLine(reference: TabReference): SimpleColoredComponent = SimpleColoredComponent().apply {
-        border = JBUI.Borders.empty(2, 16)
-        append(reference.lastKnownName.ifBlank { reference.fileUrl.substringAfterLast('/') }, SimpleTextAttributes.REGULAR_ATTRIBUTES)
+    private fun createTabLine(group: TabGroupRecord, reference: TabReference): JBPanel<JBPanel<*>> = JBPanel<JBPanel<*>>(
+        java.awt.FlowLayout(java.awt.FlowLayout.LEFT, JBUI.scale(4), 0),
+    ).apply {
+        val fileName = reference.lastKnownName.ifBlank { reference.fileUrl.substringAfterLast('/') }
         val parentPath = reference.projectRelativePath?.substringBeforeLast('/', "")?.takeIf(String::isNotBlank)
-        if (parentPath != null) append("  $parentPath", SimpleTextAttributes.GRAYED_ATTRIBUTES)
-        addMouseListener(object : MouseAdapter() {
-            override fun mouseClicked(event: MouseEvent) {
-                if (event.clickCount == 2 && event.button == MouseEvent.BUTTON1) TabGroupCommands.openReference(project, reference)
+        val dragHandle = JLabel(TabGroupIcons.tabDragHandle).apply {
+            toolTipText = "Drag to reorder file in group"
+            cursor = TabGroupCursors.reorder
+            preferredSize = JBUI.size(14, 18)
+            minimumSize = preferredSize
+            maximumSize = preferredSize
+            val dragListener = object : MouseAdapter() {
+                override fun mousePressed(event: MouseEvent) {
+                    draggedTab = null
+                    clearDropIndicator()
+                }
+
+                override fun mouseReleased(event: MouseEvent) {
+                    val dragged = draggedTab
+                    if (dragged != null) completeTabReorder(event.component, event.point, dragged)
+                    draggedTab = null
+                    clearDropIndicator()
+                }
+
+                override fun mouseDragged(event: MouseEvent) {
+                    if (event.modifiersEx and InputEvent.BUTTON1_DOWN_MASK != 0) {
+                        val dragged = DraggedTab(group.id, reference.fileUrl)
+                        draggedTab = dragged
+                        updateTabReorderTarget(event.component, event.point, dragged)
+                    }
+                }
             }
-        })
+            addMouseListener(dragListener)
+            addMouseMotionListener(dragListener)
+        }
+        val nameLabel = JBLabel(fileName).apply {
+            toolTipText = reference.fileUrl
+        }
+        val pathLabel = JBLabel(parentPath ?: "").apply {
+            foreground = JBColor.GRAY
+            toolTipText = reference.fileUrl
+        }
+        val removeButton = JButton(AllIcons.Actions.Close).apply {
+            toolTipText = "Remove file from group"
+            isBorderPainted = false
+            isContentAreaFilled = false
+            isFocusPainted = false
+            preferredSize = JBUI.size(20, 20)
+            minimumSize = preferredSize
+            maximumSize = preferredSize
+            addActionListener { TabGroupCommands.removeTabFromGroup(project, group, reference) }
+        }
+        border = JBUI.Borders.empty(2, 8, 2, 4)
+        add(dragHandle)
+        add(nameLabel)
+        add(removeButton)
+        if (parentPath != null) add(pathLabel)
+        listOf<Component>(this, nameLabel, pathLabel).forEach { component ->
+            component.addMouseListener(object : MouseAdapter() {
+                override fun mouseClicked(event: MouseEvent) {
+                    if (event.clickCount == 2 && event.button == MouseEvent.BUTTON1) TabGroupCommands.openReference(project, reference)
+                }
+            })
+        }
+        putClientProperty(TAB_ROW_GROUP_ID_PROPERTY, group.id)
+        putClientProperty(TAB_ROW_FILE_URL_PROPERTY, reference.fileUrl)
+    }
+
+    private fun updateTabReorderTarget(source: Component, sourcePoint: java.awt.Point, dragged: DraggedTab) {
+        val target = tabLineAt(source, sourcePoint) ?: run {
+            clearDropIndicator()
+            return
+        }
+        val targetGroupId = target.getClientProperty(TAB_ROW_GROUP_ID_PROPERTY) as? String ?: return
+        val targetFileUrl = target.getClientProperty(TAB_ROW_FILE_URL_PROPERTY) as? String ?: return
+        if (targetGroupId != dragged.groupId || targetFileUrl == dragged.fileUrl) {
+            clearDropIndicator()
+            return
+        }
+        showDropIndicator(target, dropPosition(source, sourcePoint, target))
+    }
+
+    private fun completeTabReorder(source: Component, sourcePoint: java.awt.Point, dragged: DraggedTab) {
+        val target = tabLineAt(source, sourcePoint) ?: return
+        val targetGroupId = target.getClientProperty(TAB_ROW_GROUP_ID_PROPERTY) as? String ?: return
+        val targetFileUrl = target.getClientProperty(TAB_ROW_FILE_URL_PROPERTY) as? String ?: return
+        if (targetGroupId != dragged.groupId || targetFileUrl == dragged.fileUrl) return
+        val group = state.groups().firstOrNull { it.id == dragged.groupId } ?: return
+        val targetIndex = group.tabs.indexOfFirst { it.fileUrl == targetFileUrl }
+        if (targetIndex < 0) return
+        val beforeFileUrl = when (dropPosition(source, sourcePoint, target)) {
+            DropPosition.BEFORE -> targetFileUrl
+            DropPosition.AFTER -> group.tabs.getOrNull(targetIndex + 1)?.fileUrl
+        }
+        state.moveTabBefore(dragged.groupId, dragged.fileUrl, beforeFileUrl)
+    }
+
+    private fun tabLineAt(source: Component, sourcePoint: java.awt.Point): JComponent? {
+        val pointInGroups = SwingUtilities.convertPoint(source, sourcePoint, groupsPanel)
+        var candidate: Component? = SwingUtilities.getDeepestComponentAt(groupsPanel, pointInGroups.x, pointInGroups.y)
+        while (candidate != null && candidate !== groupsPanel) {
+            if (candidate is JComponent && candidate.getClientProperty(TAB_ROW_GROUP_ID_PROPERTY) != null) return candidate
+            candidate = candidate.parent
+        }
+        return null
     }
 
     private fun attachGroupHeaderInteractions(component: Component, group: TabGroupRecord, field: HeaderField?) {
@@ -438,10 +547,14 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
     ) {
         val actions = DefaultActionGroup().apply {
             add(groupAction("Open Group") { TabGroupCommands.activate(project, group) })
-            add(groupAction("Focus Group (Safe)") { TabGroupCommands.focus(project, group) })
-            add(groupAction("Update from Current Open Tabs") { TabGroupCommands.updateFromOpenTabs(project, group) })
+            add(groupAction("Open Group Tabs and Close Others…") { TabGroupCommands.activateAndReviewOtherTabs(project, group) })
+            addSeparator()
             add(groupAction("Add Open Tabs…") { TabGroupCommands.chooseAndAddOpenTabs(project, group) })
             add(groupAction("Add Files…") { TabGroupCommands.chooseAndAddFiles(project, group) })
+            add(groupAction("Replace Group Contents with Current Open Tabs") { TabGroupCommands.updateFromOpenTabs(project, group) })
+            addSeparator()
+            add(groupAction("Choose Other Tabs to Close…") { TabGroupCommands.reviewExternalTabs(project, group) })
+            add(groupAction("Close All Other Tabs with No Unsaved Changes (Unsafe)") { TabGroupCommands.closeUnsafeExternalTabs(project, group) })
             if (commitTargets.isNotEmpty()) {
                 addSeparator()
                 addTortoiseCommitActions(this, commitTargets)
@@ -496,11 +609,15 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
 
     private enum class DropPosition { BEFORE, AFTER }
 
+    private data class DraggedTab(val groupId: String, val fileUrl: String)
+
     private data class DropIndicator(val target: JComponent, val originalBorder: Border?, val position: DropPosition)
 
     private data class InlineEdit(val groupId: String, val field: HeaderField)
 
     private companion object {
         const val GROUP_PANEL_ID_PROPERTY = "IdeaTabManager.GroupPanelId"
+        const val TAB_ROW_GROUP_ID_PROPERTY = "IdeaTabManager.TabRowGroupId"
+        const val TAB_ROW_FILE_URL_PROPERTY = "IdeaTabManager.TabRowFileUrl"
     }
 }

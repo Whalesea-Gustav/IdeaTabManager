@@ -4,7 +4,6 @@ package com.whalesea.ideatabmanager.model
 data class TabGroupState(
     var schemaVersion: Int = CURRENT_SCHEMA_VERSION,
     var groups: MutableList<TabGroupRecord> = mutableListOf(),
-    var focusSafetyNoticeAcknowledged: Boolean = false,
 ) {
     companion object {
         const val CURRENT_SCHEMA_VERSION = 1

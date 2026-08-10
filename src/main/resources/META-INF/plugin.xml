@@ -9,6 +9,14 @@
   ]]></description>
 
   <change-notes><![CDATA[
+    <h3>0.2.9 — Safer group workflows and member organization</h3>
+    <ul>
+      <li>Added Undo for Group content and metadata changes, Group opening, and external-tab closing actions; reorder operations remain excluded.</li>
+      <li>Added collapsible folder-based selection for saving, adding, and reviewing open tabs, plus persistent ordering and remove controls for Group members.</li>
+      <li>Added <b>Open Group Tabs and Close Others…</b> with explicit review of tabs before closing.</li>
+      <li>Kept member action buttons adjacent to each file name instead of forcing them into a shared right-aligned column.</li>
+      <li>Removed internal and deprecated IntelliJ Platform API usages reported by Marketplace compatibility checks.</li>
+    </ul>
     <h3>0.2.8 — Fixed Header color marker sizing</h3>
     <ul>
       <li>Fixed the Group Header color marker expanding across the row and crowding the title, <code>num={count}</code> file count, and note.</li>
@@ -54,7 +62,7 @@
       <li>Manage named, colored, persistent Tab Groups from the <b>Tab Groups</b> Tool Window.</li>
       <li>Create groups from all open tabs or selected open tabs, add files from the Project View, and add files directly to a group.</li>
       <li>Collapse groups, add an optional note, and press <b>F2</b> on a selected header title or note to edit it inline.</li>
-      <li>Use <b>Focus Group</b> to close only clean, unpinned tabs outside the group; pinned and modified tabs remain protected.</li>
+      <li>Choose other tabs to close one by one, or use the explicitly unsafe action to close every other tab without unsaved changes.</li>
       <li>Open <b>TortoiseSVN</b> or <b>TortoiseGit</b> Commit from a group header when its files belong to a detected local working copy.</li>
       <li>Mixed groups keep separate commit entries for distinct Git/SVN working-copy roots, so unrelated repositories are never combined.</li>
     </ul>

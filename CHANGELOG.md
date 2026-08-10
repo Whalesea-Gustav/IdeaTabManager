@@ -2,6 +2,29 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.9] - 2026-08-11
+
+### Added
+
+- Added Undo for Group creation, Group opening, and external-tab closing actions.
+- Added folder-based, collapsible selection when saving open tabs or adding open tabs to a Group.
+- Added Group-level and member-level drag handles for persistent ordering.
+- Added a member remove button that removes a file from a Group without closing its editor tab.
+- Added `Open Group Tabs and Close Others…` for opening a Group and reviewing other tabs in one workflow.
+
+### Changed
+
+- Replaced the deprecated color-choice dialog API with a custom choice dialog.
+- Replaced automatic external-tab cleanup with explicit review and clearly marked unsafe cleanup actions.
+- Removed the internal pinned-tab API usage; modified tabs remain protected, while native pinned state is explicitly treated as unknown.
+- Improved member rows to show the file name, actions, and path together without forcing action buttons into a shared right edge.
+- Undo now covers Group content and metadata changes; Group and member reorder operations remain excluded by design.
+
+### Fixed
+
+- Removed the internal and deprecated IntelliJ Platform API usages reported by Marketplace compatibility checks.
+- Organized the `Choose Other Tabs to Close…` file list into a collapsible folder tree.
+
 ## [0.2.8] - 2026-08-10
 
 ### Fixed

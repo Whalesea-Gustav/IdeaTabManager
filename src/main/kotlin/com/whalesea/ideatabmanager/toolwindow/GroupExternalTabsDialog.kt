@@ -1,9 +1,7 @@
 package com.whalesea.ideatabmanager.toolwindow
 
-import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
-import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
@@ -11,43 +9,31 @@ import com.intellij.ui.components.JBPanel
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.panels.VerticalLayout
 import com.intellij.util.ui.JBUI
-import com.whalesea.ideatabmanager.actions.TabGroupCommands
-import com.whalesea.ideatabmanager.model.TabGroupRecord
-import com.whalesea.ideatabmanager.model.TabReference
+import com.whalesea.ideatabmanager.service.ExternalTabCandidate
 import java.awt.BorderLayout
 import java.awt.FlowLayout
 import java.awt.Font
-import java.awt.event.ActionEvent
 import javax.swing.Action
 import javax.swing.JButton
 import javax.swing.JComponent
 
-/** Modal group operation surface with a collapsible folder tree for open tabs. */
-class OpenTabsSelectionDialog(
-    private val project: Project,
-    private val tabs: List<TabReference>,
-    private val activeFileUrl: String?,
-    private val targetGroup: TabGroupRecord? = null,
+/** Folder-based review surface for closing clean tabs outside a selected group. */
+class GroupExternalTabsDialog(
+    project: Project,
+    private val groupName: String,
+    private val candidates: List<ExternalTabCandidate>,
+    private val onCloseSelected: (List<ExternalTabCandidate>) -> Unit,
 ) : DialogWrapper(project) {
-    private val entries = tabs.map { reference ->
-        FileEntry(reference, resolvePath(reference), JBCheckBox(reference.lastKnownName, reference.fileUrl == activeFileUrl).apply {
-            toolTipText = reference.projectRelativePath ?: reference.fileUrl
+    private val entries = candidates.map { candidate ->
+        CandidateEntry(candidate, candidate.file.path.replace('\\', '/'), JBCheckBox(candidate.displayName).apply {
+            toolTipText = candidate.file.path
         })
     }
     private val root = buildTree(entries)
 
-    private val addToExistingGroupAction = object : DialogWrapperAction("Add to Existing Group") {
-        override fun doAction(event: ActionEvent?) {
-            val selected = selectedTabsOrShowError() ?: return
-            close(OK_EXIT_CODE)
-            TabGroupCommands.addSelectedTabsToGroup(project, selected)
-        }
-    }
-
     init {
-        title = targetGroup?.let { "Add Open Tabs to ${it.name}" } ?: "Save Selected Tabs"
-        setOKButtonText(if (targetGroup == null) "Create Group" else "Add to Group")
-        addToExistingGroupAction.isEnabled = project.service<com.whalesea.ideatabmanager.service.TabGroupProjectState>().groups().isNotEmpty()
+        title = "Choose Other Tabs to Close"
+        setOKButtonText("Close Selected Tabs")
         init()
     }
 
@@ -61,9 +47,7 @@ class OpenTabsSelectionDialog(
             preferredSize = JBUI.size(560, minOf(500, 92 + entries.size * 30))
         }
         return JBPanel<JBPanel<*>>(BorderLayout(0, JBUI.scale(8))).apply {
-            val prompt = targetGroup?.let { "Choose the open files to add to '${it.name}'." }
-                ?: "Choose the open files to include in a tab group."
-            add(JBLabel(prompt), BorderLayout.NORTH)
+            add(JBLabel("Only open tabs with no unsaved changes are listed. Select the tabs you want to close."), BorderLayout.NORTH)
             add(scrollPane, BorderLayout.CENTER)
             add(JBPanel<JBPanel<*>>(FlowLayout(FlowLayout.LEFT, JBUI.scale(4), 0)).apply {
                 add(JButton("Select All").apply { addActionListener { setFolderSelection(root, true) } })
@@ -72,30 +56,16 @@ class OpenTabsSelectionDialog(
         }
     }
 
-    override fun createActions(): Array<Action> = if (targetGroup == null) {
-        arrayOf(okAction, addToExistingGroupAction, cancelAction)
-    } else {
-        arrayOf(okAction, cancelAction)
-    }
+    override fun createActions(): Array<Action> = arrayOf(okAction, cancelAction)
 
     override fun doOKAction() {
-        val selected = selectedTabsOrShowError() ?: return
-        close(OK_EXIT_CODE)
-        targetGroup?.let { group ->
-            TabGroupCommands.addSelectedTabsToGroup(project, group, selected)
+        val selected = entries.filter { it.checkBox.isSelected }.map(CandidateEntry::candidate)
+        if (selected.isEmpty()) {
+            setErrorText("Select at least one tab.")
             return
         }
-        val selectedActiveUrl = activeFileUrl?.takeIf { active -> selected.any { it.fileUrl == active } }
-        TabGroupCommands.createFromSelectedTabs(project, selected, selectedActiveUrl)
-    }
-
-    private fun selectedTabsOrShowError(): List<TabReference>? {
-        val selected = entries.filter { it.checkBox.isSelected }.map(FileEntry::reference)
-        if (selected.isEmpty()) {
-            setErrorText("Select at least one open file.")
-            return null
-        }
-        return selected
+        close(OK_EXIT_CODE)
+        onCloseSelected(selected)
     }
 
     private fun createFolderPanel(node: FolderNode, depth: Int): JComponent {
@@ -130,10 +100,10 @@ class OpenTabsSelectionDialog(
 
         val children = JBPanel<JBPanel<*>>(VerticalLayout(JBUI.scale(2))).apply {
             border = JBUI.Borders.emptyTop(1)
-                node.children.values.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name }).forEach {
+            node.children.values.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name }).forEach {
                 add(createFolderPanel(it, depth + 1))
             }
-            node.files.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.reference.lastKnownName }).forEach { entry ->
+            node.files.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.candidate.displayName }).forEach { entry ->
                 add(createFileRow(entry, depth + 1))
             }
         }
@@ -145,7 +115,7 @@ class OpenTabsSelectionDialog(
         }
     }
 
-    private fun createFileRow(entry: FileEntry, depth: Int): JComponent = JBPanel<JBPanel<*>>(BorderLayout()).apply {
+    private fun createFileRow(entry: CandidateEntry, depth: Int): JComponent = JBPanel<JBPanel<*>>(BorderLayout()).apply {
         border = JBUI.Borders.empty(0, JBUI.scale(depth * 18 + 20), 0, 0)
         add(entry.checkBox, BorderLayout.CENTER)
         entry.checkBox.addActionListener { updateFolderSelections(root) }
@@ -163,19 +133,7 @@ class OpenTabsSelectionDialog(
         node.checkBox?.isSelected = allFiles.isNotEmpty() && allFiles.all { it.checkBox.isSelected }
     }
 
-    private fun resolvePath(reference: TabReference): String {
-        val virtualFile = VirtualFileManager.getInstance().findFileByUrl(reference.fileUrl)
-        if (virtualFile != null) return virtualFile.path.replace('\\', '/')
-        val relative = reference.projectRelativePath?.trim('/', '\\')
-        val projectBase = project.basePath?.replace('\\', '/')?.trimEnd('/')
-        return when {
-            relative != null && projectBase != null -> "$projectBase/$relative"
-            relative != null -> relative
-            else -> reference.fileUrl.replace('\\', '/')
-        }
-    }
-
-    private fun buildTree(entries: List<FileEntry>): FolderNode {
+    private fun buildTree(entries: List<CandidateEntry>): FolderNode {
         val parentParts = entries.map { splitPath(it.path).dropLast(1) }
         val commonParts = commonPrefix(parentParts)
         val rootPath = renderPath(commonParts)
@@ -231,16 +189,16 @@ class OpenTabsSelectionDialog(
 
     private class FolderNode(val name: String, val fullPath: String) {
         val children = linkedMapOf<String, FolderNode>()
-        val files = mutableListOf<FileEntry>()
+        val files = mutableListOf<CandidateEntry>()
         var expanded = true
         var checkBox: JBCheckBox? = null
         var childrenPanel: JComponent? = null
 
-        fun allFiles(): List<FileEntry> = files + children.values.flatMap(FolderNode::allFiles)
+        fun allFiles(): List<CandidateEntry> = files + children.values.flatMap(FolderNode::allFiles)
     }
 
-    private data class FileEntry(
-        val reference: TabReference,
+    private data class CandidateEntry(
+        val candidate: ExternalTabCandidate,
         val path: String,
         val checkBox: JBCheckBox,
     )

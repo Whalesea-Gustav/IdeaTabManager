@@ -8,6 +8,8 @@ import com.intellij.ui.content.ContentFactory
 
 /** Phase 0 shell. Functional group management is added in the following implementation phases. */
 class TabGroupsToolWindowFactory : ToolWindowFactory, DumbAware {
+    override suspend fun isApplicableAsync(project: Project): Boolean = true
+
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
         val panel = TabGroupsPanel(project)
         val content = ContentFactory.getInstance().createContent(panel, "", false)

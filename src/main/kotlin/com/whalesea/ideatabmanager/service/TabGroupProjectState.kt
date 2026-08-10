@@ -26,6 +26,7 @@ import java.util.UUID
 )
 class TabGroupProjectState(private val project: Project) : PersistentStateComponent<TabGroupState> {
     private var state = TabGroupState()
+    private var undoOperation: TabGroupUndoOperation? = null
 
     override fun getState(): TabGroupState = state
 
@@ -35,18 +36,17 @@ class TabGroupProjectState(private val project: Project) : PersistentStateCompon
 
     fun groups(): List<TabGroupRecord> = state.groups.map(::copyGroup)
 
+    fun hasUndo(): Boolean = undoOperation != null
+
+    fun takeUndoOperation(): TabGroupUndoOperation? = undoOperation.also {
+        undoOperation = null
+        notifyGroupsChanged()
+    }
+
     fun recentGroups(limit: Int = 5): List<TabGroupRecord> = state.groups
         .sortedWith(compareByDescending<TabGroupRecord> { it.lastUsedAtEpochMs }.thenByDescending { it.updatedAtEpochMs })
         .take(limit)
         .map(::copyGroup)
-
-    fun needsFocusSafetyNotice(): Boolean = !state.focusSafetyNoticeAcknowledged
-
-    fun acknowledgeFocusSafetyNotice() {
-        if (!state.focusSafetyNoticeAcknowledged) {
-            state.focusSafetyNoticeAcknowledged = true
-        }
-    }
 
     fun createGroup(name: String, colorId: String = TabGroupRecord.DEFAULT_COLOR_ID): TabGroupRecord =
         createGroup(name, colorId, emptyList(), null)
@@ -67,9 +67,23 @@ class TabGroupProjectState(private val project: Project) : PersistentStateCompon
             createdAtEpochMs = now,
             updatedAtEpochMs = now,
         )
+        undoOperation = TabGroupUndoOperation.Groups(copyState(state))
         state.groups += group
         notifyGroupsChanged()
         return copyGroup(group)
+    }
+
+    fun setOpenTabsUndo(captured: CapturedOpenTabs) {
+        undoOperation = TabGroupUndoOperation.OpenTabs(
+            captured.tabs.map { it.copy() },
+            captured.activeFileUrl,
+        )
+        notifyGroupsChanged()
+    }
+
+    fun restoreGroups(snapshot: TabGroupState) {
+        state = copyState(snapshot).also { it.schemaVersion = TabGroupState.CURRENT_SCHEMA_VERSION }
+        notifyGroupsChanged()
     }
 
     fun captureOpenTabs(): CapturedOpenTabs {
@@ -88,44 +102,66 @@ class TabGroupProjectState(private val project: Project) : PersistentStateCompon
 
     fun updateGroup(groupId: String, tabs: Collection<TabReference>, activeFileUrl: String?): TabGroupRecord? =
         findMutable(groupId)?.also { group ->
-            group.tabs = distinctReferences(tabs).toMutableList()
-            group.activeFileUrl = activeFileUrl?.takeIf { url -> group.tabs.any { it.fileUrl == url } }
-            touch(group)
-            notifyGroupsChanged()
+            val newTabs = distinctReferences(tabs)
+            val newActiveFileUrl = activeFileUrl?.takeIf { url -> newTabs.any { it.fileUrl == url } }
+            if (group.tabs.map { it.fileUrl } != newTabs.map { it.fileUrl } || group.activeFileUrl != newActiveFileUrl) {
+                recordGroupUndo()
+                group.tabs = newTabs.toMutableList()
+                group.activeFileUrl = newActiveFileUrl
+                touch(group)
+                notifyGroupsChanged()
+            }
         }?.let(::copyGroup)
 
     fun renameGroup(groupId: String, name: String): TabGroupRecord? =
         findMutable(groupId)?.also {
-            it.name = requireName(name)
-            touch(it)
-            notifyGroupsChanged()
+            val newName = requireName(name)
+            if (it.name != newName) {
+                recordGroupUndo()
+                it.name = newName
+                touch(it)
+                notifyGroupsChanged()
+            }
         }?.let(::copyGroup)
 
     fun updateGroupComment(groupId: String, comment: String): TabGroupRecord? =
         findMutable(groupId)?.also {
-            it.comment = comment.replace(Regex("[\\r\\n]+"), " ").trim()
-            touch(it)
-            notifyGroupsChanged()
+            val newComment = comment.replace(Regex("[\\r\\n]+"), " ").trim()
+            if (it.comment != newComment) {
+                recordGroupUndo()
+                it.comment = newComment
+                touch(it)
+                notifyGroupsChanged()
+            }
         }?.let(::copyGroup)
 
     fun changeGroupColor(groupId: String, colorId: String): TabGroupRecord? =
         findMutable(groupId)?.also {
-            it.colorId = requireColorId(colorId)
-            touch(it)
-            notifyGroupsChanged()
+            val newColorId = requireColorId(colorId)
+            if (it.colorId != newColorId) {
+                recordGroupUndo()
+                it.colorId = newColorId
+                touch(it)
+                notifyGroupsChanged()
+            }
         }?.let(::copyGroup)
 
     fun setGroupCollapsed(groupId: String, isCollapsed: Boolean): TabGroupRecord? =
         findMutable(groupId)?.also {
             if (it.isCollapsed != isCollapsed) {
+                recordGroupUndo()
                 it.isCollapsed = isCollapsed
                 touch(it)
                 notifyGroupsChanged()
             }
         }?.let(::copyGroup)
 
-    fun deleteGroup(groupId: String): Boolean = state.groups.removeIf { it.id == groupId }.also { removed ->
-        if (removed) notifyGroupsChanged()
+    fun deleteGroup(groupId: String): Boolean {
+        if (state.groups.none { it.id == groupId }) return false
+        recordGroupUndo()
+        state.groups.removeIf { it.id == groupId }
+        notifyGroupsChanged()
+        return true
     }
 
     /** Reorders the persisted group list without affecting recent-use metadata or group contents. */
@@ -145,6 +181,25 @@ class TabGroupProjectState(private val project: Project) : PersistentStateCompon
         return true
     }
 
+    /** Reorders one member within a Group without changing its file reference. */
+    fun moveTabBefore(groupId: String, fileUrl: String, beforeFileUrl: String?): Boolean {
+        val group = findMutable(groupId) ?: return false
+        val sourceIndex = group.tabs.indexOfFirst { it.fileUrl == fileUrl }
+        if (sourceIndex < 0 || beforeFileUrl == fileUrl) return false
+
+        val beforeIndex = beforeFileUrl?.let { url -> group.tabs.indexOfFirst { it.fileUrl == url } } ?: -1
+        if (beforeFileUrl != null && beforeIndex < 0) return false
+        if (beforeIndex == sourceIndex || beforeIndex == sourceIndex + 1) return false
+        if (beforeFileUrl == null && sourceIndex == group.tabs.lastIndex) return false
+
+        val reference = group.tabs.removeAt(sourceIndex)
+        val destinationIndex = beforeFileUrl?.let { url -> group.tabs.indexOfFirst { it.fileUrl == url } } ?: group.tabs.size
+        group.tabs.add(destinationIndex, reference)
+        touch(group)
+        notifyGroupsChanged()
+        return true
+    }
+
     fun addTabToGroup(groupId: String, reference: TabReference): TabGroupRecord? {
         require(reference.fileUrl.isNotBlank()) { "Tab reference URL must not be blank." }
         return addTabsToGroup(groupId, listOf(reference))
@@ -154,6 +209,7 @@ class TabGroupProjectState(private val project: Project) : PersistentStateCompon
         findMutable(groupId)?.also { group ->
             val additions = distinctReferences(references).filter { candidate -> group.tabs.none { it.fileUrl == candidate.fileUrl } }
             if (additions.isNotEmpty()) {
+                recordGroupUndo()
                 group.tabs += additions
                 touch(group)
                 notifyGroupsChanged()
@@ -168,7 +224,10 @@ class TabGroupProjectState(private val project: Project) : PersistentStateCompon
 
     fun removeTabFromGroup(groupId: String, fileUrl: String): TabGroupRecord? =
         findMutable(groupId)?.also { group ->
-            if (group.tabs.removeIf { it.fileUrl == fileUrl }) {
+            val removedIndex = group.tabs.indexOfFirst { it.fileUrl == fileUrl }
+            if (removedIndex >= 0) {
+                recordGroupUndo()
+                group.tabs.removeAt(removedIndex)
                 if (group.activeFileUrl == fileUrl) {
                     group.activeFileUrl = group.tabs.firstOrNull()?.fileUrl
                 }
@@ -180,12 +239,6 @@ class TabGroupProjectState(private val project: Project) : PersistentStateCompon
     fun restoreGroup(groupId: String, onComplete: (TabGroupRestoreResult) -> Unit = {}): Boolean {
         val group = findMutable(groupId)?.let(::copyGroup) ?: return false
         TabGroupRestorer(project).restore(group, onComplete)
-        return true
-    }
-
-    fun focusGroup(groupId: String, onComplete: (FocusGroupResult) -> Unit = {}): Boolean {
-        val group = findMutable(groupId)?.let(::copyGroup) ?: return false
-        TabGroupRestorer(project).focus(group, onComplete)
         return true
     }
 
@@ -212,6 +265,10 @@ class TabGroupProjectState(private val project: Project) : PersistentStateCompon
 
     private fun findMutable(groupId: String): TabGroupRecord? = state.groups.firstOrNull { it.id == groupId }
 
+    private fun recordGroupUndo() {
+        undoOperation = TabGroupUndoOperation.Groups(copyState(state))
+    }
+
     private fun touch(group: TabGroupRecord) {
         group.updatedAtEpochMs = System.currentTimeMillis()
     }
@@ -228,9 +285,22 @@ class TabGroupProjectState(private val project: Project) : PersistentStateCompon
         references.filter { it.fileUrl.isNotBlank() }.distinctBy { it.fileUrl }.map { it.copy() }
 
     private fun copyGroup(group: TabGroupRecord): TabGroupRecord = group.copy(tabs = group.tabs.map { it.copy() }.toMutableList())
+
+    private fun copyState(source: TabGroupState): TabGroupState = source.copy(
+        groups = source.groups.map(::copyGroup).toMutableList(),
+    )
 }
 
 data class CapturedOpenTabs(
     val tabs: List<TabReference>,
     val activeFileUrl: String?,
 )
+
+sealed interface TabGroupUndoOperation {
+    data class Groups(val state: TabGroupState) : TabGroupUndoOperation
+
+    data class OpenTabs(
+        val tabs: List<TabReference>,
+        val activeFileUrl: String?,
+    ) : TabGroupUndoOperation
+}
