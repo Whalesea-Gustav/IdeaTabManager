@@ -7,6 +7,7 @@ import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBPanel
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.util.ui.JBUI
+import com.whalesea.ideatabmanager.IdeaTabManagerBundle
 import java.awt.BorderLayout
 import javax.swing.Action
 import javax.swing.JComponent
@@ -47,7 +48,7 @@ class SingleChoiceDialog(
     override fun doOKAction() {
         val index = list.selectedIndex
         if (index < 0) {
-            setErrorText("Select an item.")
+            setErrorText(IdeaTabManagerBundle.message("error.choice.selection-required"))
             return
         }
         selectedIndex = index

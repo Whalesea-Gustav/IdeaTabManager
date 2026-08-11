@@ -1,12 +1,12 @@
 package com.whalesea.ideatabmanager
 
-import com.intellij.AbstractBundle
+import com.intellij.DynamicBundle
 import org.jetbrains.annotations.PropertyKey
 import java.util.function.Supplier
 
 private const val BUNDLE = "messages.IdeaTabManagerBundle"
 
-object IdeaTabManagerBundle : AbstractBundle(BUNDLE) {
+object IdeaTabManagerBundle : DynamicBundle(BUNDLE) {
     @JvmStatic
     fun message(@PropertyKey(resourceBundle = BUNDLE) key: String, vararg params: Any): String =
         getMessage(key, *params)

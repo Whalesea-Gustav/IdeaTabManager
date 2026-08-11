@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.3.0] - 2026-08-11
+
+### Added
+
+- Added Simplified Chinese localization for the Tab Groups UI, including Tool Window controls, menus, dialogs, notifications, color labels, and context-menu actions.
+- The plugin now follows the JetBrains IDE UI language through `DynamicBundle`; Chinese is loaded for `zh_CN` and other locales fall back to English.
+
+### Changed
+
+- Moved user-facing plugin text into paired English and Simplified Chinese resource bundles, with automated validation that keys and message parameters stay aligned.
+
 ## [0.2.11] - 2026-08-11
 
 ### Added

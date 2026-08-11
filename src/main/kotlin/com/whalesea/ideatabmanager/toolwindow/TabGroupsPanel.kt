@@ -23,6 +23,7 @@ import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.components.panels.VerticalLayout
 import com.intellij.util.ui.JBUI
+import com.whalesea.ideatabmanager.IdeaTabManagerBundle
 import com.whalesea.ideatabmanager.actions.TabGroupCommands
 import com.whalesea.ideatabmanager.model.TabGroupRecord
 import com.whalesea.ideatabmanager.model.TabReference
@@ -97,8 +98,8 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
         "TabGroupsToolbar",
         DefaultActionGroup().apply {
             add(object : DumbAwareAction(
-                "Undo Last Group Action",
-                "Undo the last Group change, open, or close action; reorder actions are excluded",
+                IdeaTabManagerBundle.message("toolbar.undo.text"),
+                IdeaTabManagerBundle.message("toolbar.undo.description"),
                 com.intellij.icons.AllIcons.Actions.Undo,
             ) {
                 override fun update(event: AnActionEvent) {
@@ -108,22 +109,22 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
                 override fun actionPerformed(event: AnActionEvent) = TabGroupCommands.undoLast(project)
             })
             add(object : DumbAwareAction(
-                "Create Empty Group",
-                "Create an empty tab group",
+                IdeaTabManagerBundle.message("toolbar.create-empty-group.text"),
+                IdeaTabManagerBundle.message("toolbar.create-empty-group.description"),
                 TabGroupIcons.newEmptyGroup,
             ) {
                 override fun actionPerformed(event: AnActionEvent) = TabGroupCommands.createEmptyGroup(project)
             })
             add(object : DumbAwareAction(
-                "Save All Tabs",
-                "Save all open editor tabs as a tab group",
+                IdeaTabManagerBundle.message("toolbar.save-all-tabs.text"),
+                IdeaTabManagerBundle.message("toolbar.save-all-tabs.description"),
                 TabGroupIcons.saveCurrentTabs,
             ) {
                 override fun actionPerformed(event: AnActionEvent) = TabGroupCommands.createFromOpenTabs(project)
             })
             add(object : DumbAwareAction(
-                "Save Selected Tabs",
-                "Choose open editor tabs to create or update a tab group",
+                IdeaTabManagerBundle.message("toolbar.save-selected-tabs.text"),
+                IdeaTabManagerBundle.message("toolbar.save-selected-tabs.description"),
                 TabGroupIcons.saveSelectedTabs,
             ) {
                 override fun actionPerformed(event: AnActionEvent) = TabGroupCommands.selectOpenTabs(project)
@@ -134,12 +135,12 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
 
     private fun renderGroups() {
         groupsPanel.removeAll()
-        groupsPanel.add(JBLabel("Tab Groups"))
+        groupsPanel.add(JBLabel(IdeaTabManagerBundle.message("toolwindow.title")))
 
         val groups = state.groups()
         memberAdjustmentGroups.retainAll(groups.map(TabGroupRecord::id).toSet())
         if (groups.isEmpty()) {
-            groupsPanel.add(JBLabel("No tab groups yet. Select open tabs or save the current editor context.").apply {
+            groupsPanel.add(JBLabel(IdeaTabManagerBundle.message("toolwindow.empty.description")).apply {
                 border = JBUI.Borders.empty(8)
             })
         } else {
@@ -173,7 +174,7 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
     private fun createGroupHeader(group: TabGroupRecord): JBPanel<JBPanel<*>> = JBPanel<JBPanel<*>>(BorderLayout()).apply {
         val color = TabGroupColorPalette.colorFor(group.colorId).color
         val collapseButton = JButton(if (group.isCollapsed) TabGroupIcons.expand else TabGroupIcons.collapse).apply {
-            toolTipText = if (group.isCollapsed) "Expand tab group" else "Collapse tab group"
+            toolTipText = IdeaTabManagerBundle.message(if (group.isCollapsed) "tooltip.group.expand" else "tooltip.group.collapse")
             isBorderPainted = false
             isContentAreaFilled = false
             isFocusPainted = false
@@ -184,7 +185,7 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
             addActionListener { TabGroupCommands.setCollapsed(project, group, !group.isCollapsed) }
         }
         val dragHandle = JLabel(TabGroupIcons.groupDragHandle).apply {
-            toolTipText = "Drag to reorder tab group"
+            toolTipText = IdeaTabManagerBundle.message("tooltip.group.reorder")
             cursor = TabGroupCursors.reorder
             preferredSize = JBUI.size(16, 20)
             minimumSize = preferredSize
@@ -228,8 +229,8 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
         val adjustButton = JToggleButton(AllIcons.Actions.Edit).apply {
             isSelected = adjustmentEnabled
             selectedIcon = AllIcons.Actions.ToggleVisibility
-            toolTipText = if (adjustmentEnabled) "Hide file reorder and remove controls" else "Show file reorder and remove controls"
-            accessibleContext.accessibleName = "File adjustment controls"
+            toolTipText = IdeaTabManagerBundle.message(if (adjustmentEnabled) "tooltip.member-controls.hide" else "tooltip.member-controls.show")
+            accessibleContext.accessibleName = IdeaTabManagerBundle.message("accessible.member-controls")
             isBorderPainted = false
             isContentAreaFilled = false
             isFocusPainted = false
@@ -243,7 +244,7 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
             }
         }
         val addCurrentButton = JButton(AllIcons.Actions.AddFile).apply {
-            toolTipText = "Add current editor file to group"
+            toolTipText = IdeaTabManagerBundle.message("tooltip.group.add-current-editor-file")
             isBorderPainted = false
             isContentAreaFilled = false
             isFocusPainted = false
@@ -254,7 +255,7 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
             addActionListener { TabGroupCommands.addCurrentOpenFileToGroup(project, group) }
         }
         val addOpenFilesButton = JButton(AllIcons.Actions.AddList).apply {
-            toolTipText = "Choose open editor files to add to group"
+            toolTipText = IdeaTabManagerBundle.message("tooltip.group.add-open-editor-files")
             isBorderPainted = false
             isContentAreaFilled = false
             isFocusPainted = false
@@ -388,14 +389,14 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
             if (field == HeaderField.TITLE) font = font.deriveFont(Font.BOLD)
             if (field == HeaderField.COMMENT) foreground = JBColor.GRAY
             toolTipText = when {
-                field == HeaderField.COMMENT && group.comment.isBlank() -> "Select this note and press F2 to edit"
+                field == HeaderField.COMMENT && group.comment.isBlank() -> IdeaTabManagerBundle.message("tooltip.group.note.empty")
                 field == HeaderField.COMMENT -> group.comment
                 else -> null
             }
         }
     }
 
-    private fun groupCountComponent(group: TabGroupRecord): JComponent = JBLabel("num=${group.tabs.size}").apply {
+    private fun groupCountComponent(group: TabGroupRecord): JComponent = JBLabel(IdeaTabManagerBundle.message("group.file-count", group.tabs.size)).apply {
         // Keep the count legible without competing with the editable group title.
         font = font.deriveFont(Font.PLAIN, (font.size2D - 1f).coerceAtLeast(10f))
         foreground = JBColor(0x737B87, 0x8A939F)
@@ -405,7 +406,7 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
     private fun createInlineEditor(group: TabGroupRecord, field: HeaderField): JBTextField {
         val initialValue = if (field == HeaderField.TITLE) group.name else group.comment
         return JBTextField(initialValue).apply {
-            toolTipText = "Enter to save, Escape to cancel"
+            toolTipText = IdeaTabManagerBundle.message("tooltip.inline-editor")
             addActionListener { finishInlineEdit(group, field, text) }
             addKeyListener(object : KeyAdapter() {
                 override fun keyPressed(event: KeyEvent) {
@@ -447,7 +448,7 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
 
     private fun createTabList(group: TabGroupRecord): JBPanel<JBPanel<*>> = JBPanel<JBPanel<*>>(VerticalLayout(JBUI.scale(2))).apply {
         if (group.tabs.isEmpty()) {
-            add(JBLabel("Empty group").apply { border = JBUI.Borders.empty(4, 16) })
+            add(JBLabel(IdeaTabManagerBundle.message("group.empty")).apply { border = JBUI.Borders.empty(4, 16) })
         } else {
             val showControls = group.id in memberAdjustmentGroups
             group.tabs.forEach { add(createTabLine(group, it, showControls)) }
@@ -460,7 +461,7 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
         val fileName = reference.lastKnownName.ifBlank { reference.fileUrl.substringAfterLast('/') }
         val parentPath = reference.projectRelativePath?.substringBeforeLast('/', "")?.takeIf(String::isNotBlank)
         val dragHandle = JLabel(TabGroupIcons.tabDragHandle).apply {
-            toolTipText = "Drag to reorder file in group"
+            toolTipText = IdeaTabManagerBundle.message("tooltip.member.reorder")
             cursor = TabGroupCursors.reorder
             preferredSize = JBUI.size(14, 18)
             minimumSize = preferredSize
@@ -497,7 +498,7 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
             toolTipText = reference.fileUrl
         }
         val removeButton = JButton(AllIcons.Actions.Close).apply {
-            toolTipText = "Remove file from group"
+            toolTipText = IdeaTabManagerBundle.message("tooltip.member.remove")
             isBorderPainted = false
             isContentAreaFilled = false
             isFocusPainted = false
@@ -621,20 +622,20 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
     ) {
         val fileName = reference.lastKnownName.ifBlank { reference.fileUrl.substringAfterLast('/') }
         val actions = DefaultActionGroup().apply {
-            add(groupAction("Open Single File") { TabGroupCommands.openReference(project, reference) })
-            add(groupAction("Remove from Group") { TabGroupCommands.removeTabFromGroup(project, group, reference) })
-            add(groupAction("Copy File Path") {
+            add(groupAction(IdeaTabManagerBundle.message("menu.member.open-file")) { TabGroupCommands.openReference(project, reference) })
+            add(groupAction(IdeaTabManagerBundle.message("menu.member.remove")) { TabGroupCommands.removeTabFromGroup(project, group, reference) })
+            add(groupAction(IdeaTabManagerBundle.message("menu.member.copy-path")) {
                 val path = VirtualFileManager.getInstance().findFileByUrl(reference.fileUrl)?.path ?: reference.fileUrl
                 CopyPasteManager.getInstance().setContents(StringSelection(path))
             })
             if (singleFileTargets.isNotEmpty() || groupTargets.isNotEmpty()) addSeparator()
             singleFileTargets.forEach { target ->
-                add(groupAction("Commit Single File with ${target.kind.displayName}") {
+                add(groupAction(IdeaTabManagerBundle.message("menu.member.commit-single", target.kind.displayName)) {
                     TortoiseCommitService.launch(project, target)
                 })
             }
             if (groupTargets.isNotEmpty()) {
-                add(DefaultActionGroup("Commit Group Files", true).apply {
+                add(DefaultActionGroup(IdeaTabManagerBundle.message("menu.member.commit-group-files"), true).apply {
                     addTortoiseCommitActions(this, groupTargets)
                 })
             }
@@ -655,31 +656,31 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
         commitTargets: List<TortoiseCommitTarget>,
     ) {
         val actions = DefaultActionGroup().apply {
-            add(groupAction("Open Group") { TabGroupCommands.activate(project, group) })
-            add(groupAction("Open Group Tabs and Close Others…") { TabGroupCommands.activateAndReviewOtherTabs(project, group) })
+            add(groupAction(IdeaTabManagerBundle.message("menu.group.open")) { TabGroupCommands.activate(project, group) })
+            add(groupAction(IdeaTabManagerBundle.message("menu.group.open-and-close-others")) { TabGroupCommands.activateAndReviewOtherTabs(project, group) })
             addSeparator()
-            add(groupAction("Add Open Tabs…") { TabGroupCommands.chooseAndAddOpenTabs(project, group) })
-            add(groupAction("Add Files…") { TabGroupCommands.chooseAndAddFiles(project, group) })
-            add(groupAction("Replace Group Contents with Current Open Tabs") { TabGroupCommands.updateFromOpenTabs(project, group) })
+            add(groupAction(IdeaTabManagerBundle.message("menu.group.add-open-tabs")) { TabGroupCommands.chooseAndAddOpenTabs(project, group) })
+            add(groupAction(IdeaTabManagerBundle.message("menu.group.add-files")) { TabGroupCommands.chooseAndAddFiles(project, group) })
+            add(groupAction(IdeaTabManagerBundle.message("menu.group.replace-open-tabs")) { TabGroupCommands.updateFromOpenTabs(project, group) })
             addSeparator()
-            add(groupAction("Choose Other Tabs to Close…") { TabGroupCommands.reviewExternalTabs(project, group) })
-            add(groupAction("Close All Other Tabs with No Unsaved Changes (Unsafe)") { TabGroupCommands.closeUnsafeExternalTabs(project, group) })
+            add(groupAction(IdeaTabManagerBundle.message("menu.group.choose-other-tabs-to-close")) { TabGroupCommands.reviewExternalTabs(project, group) })
+            add(groupAction(IdeaTabManagerBundle.message("menu.group.close-clean-other-tabs.unsafe")) { TabGroupCommands.closeUnsafeExternalTabs(project, group) })
             if (commitTargets.isNotEmpty()) {
                 addSeparator()
                 addTortoiseCommitActions(this, commitTargets)
             }
             addSeparator()
-            add(groupAction("Edit Title") { beginInlineEdit(group.id, HeaderField.TITLE) })
-            add(groupAction("Edit Note") { beginInlineEdit(group.id, HeaderField.COMMENT) })
-            add(groupAction("Change Color") { TabGroupCommands.changeColor(project, group) })
-            add(groupAction(if (group.isCollapsed) "Expand" else "Collapse") {
+            add(groupAction(IdeaTabManagerBundle.message("menu.group.edit-title")) { beginInlineEdit(group.id, HeaderField.TITLE) })
+            add(groupAction(IdeaTabManagerBundle.message("menu.group.edit-note")) { beginInlineEdit(group.id, HeaderField.COMMENT) })
+            add(groupAction(IdeaTabManagerBundle.message("menu.group.change-color")) { TabGroupCommands.changeColor(project, group) })
+            add(groupAction(IdeaTabManagerBundle.message(if (group.isCollapsed) "menu.group.expand" else "menu.group.collapse")) {
                 TabGroupCommands.setCollapsed(project, group, !group.isCollapsed)
             })
             addSeparator()
-            add(groupAction("Delete") { TabGroupCommands.delete(project, group) })
+            add(groupAction(IdeaTabManagerBundle.message("menu.group.delete")) { TabGroupCommands.delete(project, group) })
         }
         JBPopupFactory.getInstance().createActionGroupPopup(
-            "Tab Group",
+            IdeaTabManagerBundle.message("menu.group.title"),
             actions,
             dataContext,
             JBPopupFactory.ActionSelectionAid.SPEEDSEARCH,
@@ -695,13 +696,13 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
             val totalFiles = targets.sumOf(TortoiseCommitTarget::fileCount)
             if (targets.size == 1) {
                 val target = targets.single()
-                actions.add(groupAction("Commit with ${kind.displayName} ($totalFiles)") {
+                actions.add(groupAction(IdeaTabManagerBundle.message("menu.commit.with-kind", kind.displayName, totalFiles)) {
                     TortoiseCommitService.launch(project, target)
                 })
             } else {
-                actions.add(DefaultActionGroup("Commit with ${kind.displayName} ($totalFiles)", true).apply {
+                actions.add(DefaultActionGroup(IdeaTabManagerBundle.message("menu.commit.with-kind", kind.displayName, totalFiles), true).apply {
                     targets.forEach { target ->
-                        add(groupAction("${target.workingCopyRoot} (${target.fileCount})") {
+                        add(groupAction(IdeaTabManagerBundle.message("menu.commit.target", target.workingCopyRoot, target.fileCount)) {
                             TortoiseCommitService.launch(project, target)
                         })
                     }

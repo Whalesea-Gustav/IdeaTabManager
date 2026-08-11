@@ -9,6 +9,11 @@
   ]]></description>
 
   <change-notes><![CDATA[
+    <h3>0.3.0 - Simplified Chinese localization</h3>
+    <ul>
+      <li>Added Simplified Chinese UI text for Tab Groups menus, dialogs, notifications, Tool Window controls, and color labels.</li>
+      <li>Tab Groups now follows the JetBrains IDE UI language automatically: <code>zh_CN</code> uses Chinese and other locales use English.</li>
+    </ul>
     <h3>0.2.11 - Faster Group file adding</h3>
     <ul>
       <li>Added Header buttons to add the active editor file or choose multiple open files for a Group.</li>
@@ -94,32 +99,23 @@
 
   <actions>
     <group id="IdeaTabManager.TabGroups.EditorPopup"
-           text="Tab Groups"
-           description="Manage the current editor file in Tab Groups"
            popup="true">
       <add-to-group group-id="EditorPopupMenu" anchor="last"/>
       <add-to-group group-id="EditorTabPopupMenu" anchor="last"/>
       <action id="IdeaTabManager.NewGroupWithCurrentTab"
-              class="com.whalesea.ideatabmanager.actions.CreateGroupFromCurrentTabAction"
-              text="New Group with Current Tab"/>
+              class="com.whalesea.ideatabmanager.actions.CreateGroupFromCurrentTabAction"/>
       <action id="IdeaTabManager.AddCurrentTabToGroup"
-              class="com.whalesea.ideatabmanager.actions.AddCurrentTabToGroupAction"
-              text="Add Current Tab to Group..."/>
+              class="com.whalesea.ideatabmanager.actions.AddCurrentTabToGroupAction"/>
       <action id="IdeaTabManager.RemoveCurrentTabFromGroup"
-              class="com.whalesea.ideatabmanager.actions.RemoveCurrentTabFromGroupAction"
-              text="Remove Current Tab from Group..."/>
+              class="com.whalesea.ideatabmanager.actions.RemoveCurrentTabFromGroupAction"/>
     </group>
     <group id="IdeaTabManager.TabGroups.ProjectViewPopup"
            class="com.whalesea.ideatabmanager.actions.AddSelectedProjectFilesToGroupActionGroup"
-           text="Tab Groups"
-           description="Add selected project files to a tab group"
            popup="true">
       <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
     </group>
     <action id="IdeaTabManager.ShowTabGroups"
-            class="com.whalesea.ideatabmanager.actions.ShowTabGroupsAction"
-            text="Show Tab Groups"
-            description="Open the Tab Groups tool window">
+            class="com.whalesea.ideatabmanager.actions.ShowTabGroupsAction">
       <add-to-group group-id="ToolsMenu" anchor="last"/>
     </action>
   </actions>

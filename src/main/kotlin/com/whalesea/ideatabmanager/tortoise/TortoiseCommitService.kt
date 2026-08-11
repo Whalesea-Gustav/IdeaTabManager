@@ -5,6 +5,7 @@ import com.intellij.notification.NotificationType
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
+import com.whalesea.ideatabmanager.IdeaTabManagerBundle
 import com.whalesea.ideatabmanager.model.TabGroupRecord
 import com.whalesea.ideatabmanager.model.TabReference
 import java.nio.charset.Charset
@@ -46,7 +47,7 @@ object TortoiseCommitService {
         ApplicationManager.getApplication().executeOnPooledThread {
             val executable = TortoiseClientLocator.find(immutableTarget.kind)
             if (executable == null) {
-                notify(project, "${immutableTarget.kind.displayName} was not found. Install it or refresh the group menu.", NotificationType.ERROR)
+                notify(project, IdeaTabManagerBundle.message("notification.tortoise.not-found", immutableTarget.kind.displayName), NotificationType.ERROR)
                 return@executeOnPooledThread
             }
 
@@ -59,7 +60,7 @@ object TortoiseCommitService {
                 invocation?.deletePathFileIfPresent()
                 log.warn("Could not open ${immutableTarget.kind.displayName} commit dialog.", exception)
                 val detail = exception.message ?: exception.javaClass.simpleName
-                notify(project, "Could not open ${immutableTarget.kind.displayName} commit dialog: $detail", NotificationType.ERROR)
+                notify(project, IdeaTabManagerBundle.message("notification.tortoise.launch-failed", immutableTarget.kind.displayName, detail), NotificationType.ERROR)
             }
         }
     }

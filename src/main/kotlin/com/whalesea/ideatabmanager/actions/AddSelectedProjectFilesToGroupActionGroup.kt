@@ -9,11 +9,12 @@ import com.intellij.openapi.components.service
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.vfs.VirtualFile
+import com.whalesea.ideatabmanager.IdeaTabManagerBundle
 import com.whalesea.ideatabmanager.model.TabGroupRecord
 import com.whalesea.ideatabmanager.service.TabGroupProjectState
 
 /** Dynamic Project View submenu: recent groups are one click away, with a full chooser as fallback. */
-class AddSelectedProjectFilesToGroupActionGroup : ActionGroup("Add Selected Files to Group", true), DumbAware {
+class AddSelectedProjectFilesToGroupActionGroup : ActionGroup(IdeaTabManagerBundle.message("project-view.add-files-to-group"), true), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
 
     override fun update(event: AnActionEvent) {
@@ -26,7 +27,7 @@ class AddSelectedProjectFilesToGroupActionGroup : ActionGroup("Add Selected File
         if (files.isEmpty()) return emptyArray()
 
         val allGroups = project.service<TabGroupProjectState>().groups()
-        if (allGroups.isEmpty()) return arrayOf(disabledAction("Create a tab group first"))
+        if (allGroups.isEmpty()) return arrayOf(disabledAction(IdeaTabManagerBundle.message("notification.group.required")))
 
         val recent = project.service<TabGroupProjectState>().recentGroups()
         val actions = recent.map { group ->
@@ -37,7 +38,7 @@ class AddSelectedProjectFilesToGroupActionGroup : ActionGroup("Add Selected File
             }
         }.toMutableList<AnAction>()
         if (allGroups.size > recent.size) {
-            actions += object : DumbAwareAction("More Groups…") {
+            actions += object : DumbAwareAction(IdeaTabManagerBundle.message("project-view.more-groups")) {
                 override fun actionPerformed(actionEvent: AnActionEvent) {
                     TabGroupCommands.addFilesToChosenGroup(project, files)
                 }

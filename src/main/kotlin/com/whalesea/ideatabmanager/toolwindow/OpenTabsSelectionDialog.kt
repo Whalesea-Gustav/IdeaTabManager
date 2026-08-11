@@ -11,6 +11,7 @@ import com.intellij.ui.components.JBPanel
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.panels.VerticalLayout
 import com.intellij.util.ui.JBUI
+import com.whalesea.ideatabmanager.IdeaTabManagerBundle
 import com.whalesea.ideatabmanager.actions.TabGroupCommands
 import com.whalesea.ideatabmanager.model.TabGroupRecord
 import com.whalesea.ideatabmanager.model.TabReference
@@ -39,7 +40,7 @@ class OpenTabsSelectionDialog(
         }
     private val root = buildTree(entries)
 
-    private val addToExistingGroupAction = object : DialogWrapperAction("Add to Existing Group") {
+    private val addToExistingGroupAction = object : DialogWrapperAction(IdeaTabManagerBundle.message("dialog.open-tabs.add-existing-group")) {
         override fun doAction(event: ActionEvent?) {
             val selected = selectedTabsOrShowError() ?: return
             close(OK_EXIT_CODE)
@@ -48,8 +49,9 @@ class OpenTabsSelectionDialog(
     }
 
     init {
-        title = targetGroup?.let { "Add Open Tabs to ${it.name}" } ?: "Save Selected Tabs"
-        setOKButtonText(if (targetGroup == null) "Create Group" else "Add to Group")
+        title = targetGroup?.let { IdeaTabManagerBundle.message("dialog.open-tabs.add-to-group.title", it.name) }
+            ?: IdeaTabManagerBundle.message("dialog.open-tabs.save-selected.title")
+        setOKButtonText(IdeaTabManagerBundle.message(if (targetGroup == null) "dialog.open-tabs.create-group" else "dialog.open-tabs.add-to-group"))
         addToExistingGroupAction.isEnabled = project.service<com.whalesea.ideatabmanager.service.TabGroupProjectState>().groups().isNotEmpty()
         init()
     }
@@ -64,13 +66,13 @@ class OpenTabsSelectionDialog(
             preferredSize = JBUI.size(560, minOf(500, 92 + entries.size * 30))
         }
         return JBPanel<JBPanel<*>>(BorderLayout(0, JBUI.scale(8))).apply {
-            val prompt = targetGroup?.let { "Choose the open files to add to '${it.name}'." }
-                ?: "Choose the open files to include in a tab group."
+            val prompt = targetGroup?.let { IdeaTabManagerBundle.message("dialog.open-tabs.add-to-group.prompt", it.name) }
+                ?: IdeaTabManagerBundle.message("dialog.open-tabs.save-selected.prompt")
             add(JBLabel(prompt), BorderLayout.NORTH)
             add(scrollPane, BorderLayout.CENTER)
             add(JBPanel<JBPanel<*>>(FlowLayout(FlowLayout.LEFT, JBUI.scale(4), 0)).apply {
-                add(JButton("Select All").apply { addActionListener { setFolderSelection(root, true) } })
-                add(JButton("Clear").apply { addActionListener { setFolderSelection(root, false) } })
+                add(JButton(IdeaTabManagerBundle.message("button.select-all")).apply { addActionListener { setFolderSelection(root, true) } })
+                add(JButton(IdeaTabManagerBundle.message("button.clear")).apply { addActionListener { setFolderSelection(root, false) } })
             }, BorderLayout.SOUTH)
         }
     }
@@ -95,7 +97,7 @@ class OpenTabsSelectionDialog(
     private fun selectedTabsOrShowError(): List<TabReference>? {
         val selected = entries.filter { it.checkBox.isSelected }.map(FileEntry::reference)
         if (selected.isEmpty()) {
-            setErrorText("Select at least one open file.")
+            setErrorText(IdeaTabManagerBundle.message("error.open-tabs.selection-required"))
             return null
         }
         return selected
@@ -110,14 +112,14 @@ class OpenTabsSelectionDialog(
             isContentAreaFilled = false
             isFocusPainted = false
             isOpaque = false
-            toolTipText = if (node.expanded) "Collapse folder" else "Expand folder"
+            toolTipText = IdeaTabManagerBundle.message(if (node.expanded) "tooltip.folder.collapse" else "tooltip.folder.expand")
             preferredSize = JBUI.size(20, 20)
             minimumSize = preferredSize
             maximumSize = preferredSize
             addActionListener {
                 node.expanded = !node.expanded
                 icon = if (node.expanded) TabGroupIcons.collapse else TabGroupIcons.expand
-                toolTipText = if (node.expanded) "Collapse folder" else "Expand folder"
+                toolTipText = IdeaTabManagerBundle.message(if (node.expanded) "tooltip.folder.collapse" else "tooltip.folder.expand")
                 node.childrenPanel?.isVisible = node.expanded
                 node.childrenPanel?.parent?.revalidate()
             }
@@ -182,7 +184,7 @@ class OpenTabsSelectionDialog(
         val parentParts = entries.map { splitPath(it.path).dropLast(1) }
         val commonParts = commonPrefix(parentParts)
         val rootPath = renderPath(commonParts)
-        val root = FolderNode(if (rootPath.isBlank()) "Open Files" else rootPath, rootPath)
+        val root = FolderNode(if (rootPath.isBlank()) IdeaTabManagerBundle.message("folder.open-files") else rootPath, rootPath)
         entries.forEach { entry ->
             val parts = splitPath(entry.path).dropLast(1).drop(commonParts.size)
             var folder = root
