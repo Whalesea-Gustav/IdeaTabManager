@@ -8,9 +8,11 @@ import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.actionSystem.DefaultActionGroup
+import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.popup.JBPopupFactory
+import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.ui.JBColor
 import com.intellij.ui.SimpleColoredComponent
 import com.intellij.ui.SimpleTextAttributes
@@ -31,6 +33,7 @@ import com.whalesea.ideatabmanager.tortoise.TortoiseCommitTarget
 import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.Font
+import java.awt.datatransfer.StringSelection
 import java.awt.event.FocusAdapter
 import java.awt.event.FocusEvent
 import java.awt.event.InputEvent
@@ -239,6 +242,28 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
                 renderGroups()
             }
         }
+        val addCurrentButton = JButton(AllIcons.Actions.AddFile).apply {
+            toolTipText = "Add current editor file to group"
+            isBorderPainted = false
+            isContentAreaFilled = false
+            isFocusPainted = false
+            isOpaque = false
+            preferredSize = JBUI.size(20, 20)
+            minimumSize = preferredSize
+            maximumSize = preferredSize
+            addActionListener { TabGroupCommands.addCurrentOpenFileToGroup(project, group) }
+        }
+        val addOpenFilesButton = JButton(AllIcons.Actions.AddList).apply {
+            toolTipText = "Choose open editor files to add to group"
+            isBorderPainted = false
+            isContentAreaFilled = false
+            isFocusPainted = false
+            isOpaque = false
+            preferredSize = JBUI.size(20, 20)
+            minimumSize = preferredSize
+            maximumSize = preferredSize
+            addActionListener { TabGroupCommands.chooseAndAddOpenTabs(project, group) }
+        }
         val groupTitle = JBPanel<JBPanel<*>>().apply {
             // Do not use BorderLayout.CENTER for the title: it expands to all remaining width and
             // pushes the note to the far right, making a small intended gap look very large.
@@ -252,6 +277,9 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
             add(commentComponent.apply { alignmentY = 0.5f })
             add(Box.createHorizontalStrut(JBUI.scale(4)))
             add(adjustButton.apply { alignmentY = 0.5f })
+            add(Box.createHorizontalStrut(JBUI.scale(2)))
+            add(addCurrentButton.apply { alignmentY = 0.5f })
+            add(addOpenFilesButton.apply { alignmentY = 0.5f })
             add(Box.createHorizontalGlue())
         }
         val titlePanel = JBPanel<JBPanel<*>>(BorderLayout()).apply {
@@ -490,6 +518,13 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
                 }
             })
         }
+        listOf<Component>(this, nameLabel, pathLabel, dragHandle, removeButton).forEach { component ->
+            component.addMouseListener(object : MouseAdapter() {
+                override fun mousePressed(event: MouseEvent) = showMemberMenuIfRequested(event, group, reference)
+
+                override fun mouseReleased(event: MouseEvent) = showMemberMenuIfRequested(event, group, reference)
+            })
+        }
         putClientProperty(TAB_ROW_GROUP_ID_PROPERTY, group.id)
         putClientProperty(TAB_ROW_FILE_URL_PROPERTY, reference.fileUrl)
     }
@@ -561,6 +596,56 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
                 if (!project.isDisposed) showGroupMenu(popupPoint, dataContext, group, commitTargets)
             }
         }
+    }
+
+    private fun showMemberMenuIfRequested(event: MouseEvent, group: TabGroupRecord, reference: TabReference) {
+        if (!event.isPopupTrigger) return
+        val popupPoint = RelativePoint(event)
+        val dataContext = DataManager.getInstance().getDataContext(event.component)
+        ApplicationManager.getApplication().executeOnPooledThread {
+            val singleFileTargets = TortoiseCommitService.availableTargets(reference)
+            val groupTargets = TortoiseCommitService.availableTargets(group)
+            ApplicationManager.getApplication().invokeLater {
+                if (!project.isDisposed) showMemberMenu(popupPoint, dataContext, group, reference, singleFileTargets, groupTargets)
+            }
+        }
+    }
+
+    private fun showMemberMenu(
+        popupPoint: RelativePoint,
+        dataContext: DataContext,
+        group: TabGroupRecord,
+        reference: TabReference,
+        singleFileTargets: List<TortoiseCommitTarget>,
+        groupTargets: List<TortoiseCommitTarget>,
+    ) {
+        val fileName = reference.lastKnownName.ifBlank { reference.fileUrl.substringAfterLast('/') }
+        val actions = DefaultActionGroup().apply {
+            add(groupAction("Open Single File") { TabGroupCommands.openReference(project, reference) })
+            add(groupAction("Remove from Group") { TabGroupCommands.removeTabFromGroup(project, group, reference) })
+            add(groupAction("Copy File Path") {
+                val path = VirtualFileManager.getInstance().findFileByUrl(reference.fileUrl)?.path ?: reference.fileUrl
+                CopyPasteManager.getInstance().setContents(StringSelection(path))
+            })
+            if (singleFileTargets.isNotEmpty() || groupTargets.isNotEmpty()) addSeparator()
+            singleFileTargets.forEach { target ->
+                add(groupAction("Commit Single File with ${target.kind.displayName}") {
+                    TortoiseCommitService.launch(project, target)
+                })
+            }
+            if (groupTargets.isNotEmpty()) {
+                add(DefaultActionGroup("Commit Group Files", true).apply {
+                    addTortoiseCommitActions(this, groupTargets)
+                })
+            }
+        }
+        JBPopupFactory.getInstance().createActionGroupPopup(
+            fileName,
+            actions,
+            dataContext,
+            JBPopupFactory.ActionSelectionAid.SPEEDSEARCH,
+            false,
+        ).show(popupPoint)
     }
 
     private fun showGroupMenu(

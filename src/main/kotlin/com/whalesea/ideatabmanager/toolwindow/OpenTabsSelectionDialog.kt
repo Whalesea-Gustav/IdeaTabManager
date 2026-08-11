@@ -29,11 +29,14 @@ class OpenTabsSelectionDialog(
     private val activeFileUrl: String?,
     private val targetGroup: TabGroupRecord? = null,
 ) : DialogWrapper(project) {
-    private val entries = tabs.map { reference ->
-        FileEntry(reference, resolvePath(reference), JBCheckBox(reference.lastKnownName, reference.fileUrl == activeFileUrl).apply {
-            toolTipText = reference.projectRelativePath ?: reference.fileUrl
-        })
-    }
+    // Keep this dialog safe for all callers: an existing Group never appears as an add candidate.
+    private val entries = tabs
+        .filterNot { reference -> targetGroup?.tabs?.any { it.fileUrl == reference.fileUrl } == true }
+        .map { reference ->
+            FileEntry(reference, resolvePath(reference), JBCheckBox(reference.lastKnownName, reference.fileUrl == activeFileUrl).apply {
+                toolTipText = reference.projectRelativePath ?: reference.fileUrl
+            })
+        }
     private val root = buildTree(entries)
 
     private val addToExistingGroupAction = object : DialogWrapperAction("Add to Existing Group") {

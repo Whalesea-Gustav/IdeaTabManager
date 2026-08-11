@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.11] - 2026-08-11
+
+### Added
+
+- Added Group Header buttons for adding the currently active editor file or choosing multiple currently open files.
+- Excluded files already in the target Group from the multi-select dialog while preserving the collapsible folder-based file tree.
+
+### Fixed
+
+- Enforced URL-based de-duplication before adding files to a Group, including the new Header shortcuts.
+
 ## [0.2.10] - 2026-08-11
 
 ### Changed

@@ -50,11 +50,27 @@ object TabGroupCommands {
 
     fun chooseAndAddOpenTabs(project: Project, group: TabGroupRecord) {
         val captured = project.service<TabGroupProjectState>().captureOpenTabs()
-        if (captured.tabs.isEmpty()) {
-            notify(project, "Open one or more files before selecting tabs.", NotificationType.INFORMATION)
+        val existingUrls = group.tabs.mapTo(hashSetOf()) { it.fileUrl }
+        val candidates = captured.tabs.filterNot { it.fileUrl in existingUrls }
+        if (candidates.isEmpty()) {
+            val message = if (captured.tabs.isEmpty()) {
+                "Open one or more files before selecting tabs."
+            } else {
+                "All open files are already in '${group.name}'."
+            }
+            notify(project, message, NotificationType.INFORMATION)
             return
         }
-        OpenTabsSelectionDialog(project, captured.tabs, captured.activeFileUrl, group).show()
+        OpenTabsSelectionDialog(project, candidates, captured.activeFileUrl, group).show()
+    }
+
+    fun addCurrentOpenFileToGroup(project: Project, group: TabGroupRecord) {
+        val file = FileEditorManager.getInstance(project).selectedFiles.firstOrNull()
+        if (file == null) {
+            notify(project, "No editor file is currently active.", NotificationType.INFORMATION)
+            return
+        }
+        addFilesToGroup(project, group, listOf(file))
     }
 
     fun createFromCurrentFile(project: Project, file: VirtualFile) {
@@ -280,15 +296,14 @@ object TabGroupCommands {
     private fun addReferencesToGroup(project: Project, group: TabGroupRecord, references: Collection<TabReference>) {
         val state = project.service<TabGroupProjectState>()
         val before = group.tabs.map { it.fileUrl }.toSet()
-        val added = references.count { it.fileUrl !in before }
-        state.addTabsToGroup(group.id, references)
-        state.markGroupUsed(group.id)
-        val message = if (added == 0) {
-            "All selected files are already in '${group.name}'."
-        } else {
-            "Added $added file(s) to '${group.name}'."
+        val additions = references.filter { it.fileUrl !in before }.distinctBy { it.fileUrl }
+        if (additions.isEmpty()) {
+            notify(project, "All selected files are already in '${group.name}'.")
+            return
         }
-        notify(project, message)
+        state.addTabsToGroup(group.id, additions)
+        state.markGroupUsed(group.id)
+        notify(project, "Added ${additions.size} file(s) to '${group.name}'.")
     }
 
     private fun restoreOpenTabs(project: Project, operation: TabGroupUndoOperation.OpenTabs) {

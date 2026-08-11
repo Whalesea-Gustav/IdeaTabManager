@@ -6,6 +6,7 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.whalesea.ideatabmanager.model.TabGroupRecord
+import com.whalesea.ideatabmanager.model.TabReference
 import java.nio.charset.Charset
 import java.nio.file.Files
 import java.nio.file.Path
@@ -19,6 +20,10 @@ object TortoiseCommitService {
     private val targetCache = ConcurrentHashMap<GroupCacheKey, CachedTargets>()
 
     fun availableTargets(group: TabGroupRecord): List<TortoiseCommitTarget> = classifiedTargets(group)
+        .filter { TortoiseClientLocator.find(it.kind) != null }
+
+    fun availableTargets(reference: TabReference): List<TortoiseCommitTarget> = TortoiseWorkingCopyClassifier
+        .classifyReferences(listOf(reference))
         .filter { TortoiseClientLocator.find(it.kind) != null }
 
     /** Prepares expensive working-copy and client discovery before a user opens a group context menu. */
