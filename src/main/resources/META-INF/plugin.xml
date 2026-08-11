@@ -9,6 +9,12 @@
   ]]></description>
 
   <change-notes><![CDATA[
+    <h3>0.2.10 — On-demand member controls</h3>
+    <ul>
+      <li>Added a per-Group adjustment switch after the note to show or hide file reorder and remove controls.</li>
+      <li>Hidden the empty <code>Add note</code> placeholder while preserving note editing.</li>
+      <li>Kept file-row controls adjacent to each file name without forced right-edge alignment.</li>
+    </ul>
     <h3>0.2.9 — Safer group workflows and member organization</h3>
     <ul>
       <li>Added Undo for Group content and metadata changes, Group opening, and external-tab closing actions; reorder operations remain excluded.</li>

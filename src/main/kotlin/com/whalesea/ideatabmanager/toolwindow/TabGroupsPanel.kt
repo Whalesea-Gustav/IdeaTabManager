@@ -44,6 +44,7 @@ import javax.swing.Box
 import javax.swing.BoxLayout
 import javax.swing.JButton
 import javax.swing.JComponent
+import javax.swing.JToggleButton
 import javax.swing.JLabel
 import javax.swing.KeyStroke
 import javax.swing.SwingUtilities
@@ -61,6 +62,7 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
     private var activeDropIndicator: DropIndicator? = null
     private var draggedGroupId: String? = null
     private var draggedTab: DraggedTab? = null
+    private val memberAdjustmentGroups = mutableSetOf<String>()
 
     init {
         isFocusable = true
@@ -93,7 +95,7 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
         DefaultActionGroup().apply {
             add(object : DumbAwareAction(
                 "Undo Last Group Action",
-                "Undo the last Group creation, open, or close action",
+                "Undo the last Group change, open, or close action; reorder actions are excluded",
                 com.intellij.icons.AllIcons.Actions.Undo,
             ) {
                 override fun update(event: AnActionEvent) {
@@ -132,6 +134,7 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
         groupsPanel.add(JBLabel("Tab Groups"))
 
         val groups = state.groups()
+        memberAdjustmentGroups.retainAll(groups.map(TabGroupRecord::id).toSet())
         if (groups.isEmpty()) {
             groupsPanel.add(JBLabel("No tab groups yet. Select open tabs or save the current editor context.").apply {
                 border = JBUI.Borders.empty(8)
@@ -218,6 +221,24 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
         val titleComponent = textComponent(group, HeaderField.TITLE)
         val countComponent = groupCountComponent(group)
         val commentComponent = textComponent(group, HeaderField.COMMENT)
+        val adjustmentEnabled = group.id in memberAdjustmentGroups
+        val adjustButton = JToggleButton(AllIcons.Actions.Edit).apply {
+            isSelected = adjustmentEnabled
+            selectedIcon = AllIcons.Actions.ToggleVisibility
+            toolTipText = if (adjustmentEnabled) "Hide file reorder and remove controls" else "Show file reorder and remove controls"
+            accessibleContext.accessibleName = "File adjustment controls"
+            isBorderPainted = false
+            isContentAreaFilled = false
+            isFocusPainted = false
+            isOpaque = false
+            preferredSize = JBUI.size(20, 20)
+            minimumSize = preferredSize
+            maximumSize = preferredSize
+            addActionListener {
+                if (isSelected) memberAdjustmentGroups += group.id else memberAdjustmentGroups -= group.id
+                renderGroups()
+            }
+        }
         val groupTitle = JBPanel<JBPanel<*>>().apply {
             // Do not use BorderLayout.CENTER for the title: it expands to all remaining width and
             // pushes the note to the far right, making a small intended gap look very large.
@@ -229,6 +250,8 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
             add(countComponent.apply { alignmentY = 0.5f })
             add(Box.createHorizontalStrut(JBUI.scale(4)))
             add(commentComponent.apply { alignmentY = 0.5f })
+            add(Box.createHorizontalStrut(JBUI.scale(4)))
+            add(adjustButton.apply { alignmentY = 0.5f })
             add(Box.createHorizontalGlue())
         }
         val titlePanel = JBPanel<JBPanel<*>>(BorderLayout()).apply {
@@ -330,7 +353,7 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
         if (inlineEdit == InlineEdit(group.id, field)) return createInlineEditor(group, field)
         val text = when (field) {
             HeaderField.TITLE -> group.name
-            HeaderField.COMMENT -> group.comment.ifBlank { "Add note" }
+            HeaderField.COMMENT -> group.comment
         }
         return JBLabel(text).apply {
             border = JBUI.Borders.empty()
@@ -398,11 +421,12 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
         if (group.tabs.isEmpty()) {
             add(JBLabel("Empty group").apply { border = JBUI.Borders.empty(4, 16) })
         } else {
-            group.tabs.forEach { add(createTabLine(group, it)) }
+            val showControls = group.id in memberAdjustmentGroups
+            group.tabs.forEach { add(createTabLine(group, it, showControls)) }
         }
     }
 
-    private fun createTabLine(group: TabGroupRecord, reference: TabReference): JBPanel<JBPanel<*>> = JBPanel<JBPanel<*>>(
+    private fun createTabLine(group: TabGroupRecord, reference: TabReference, showControls: Boolean): JBPanel<JBPanel<*>> = JBPanel<JBPanel<*>>(
         java.awt.FlowLayout(java.awt.FlowLayout.LEFT, JBUI.scale(4), 0),
     ).apply {
         val fileName = reference.lastKnownName.ifBlank { reference.fileUrl.substringAfterLast('/') }
@@ -455,9 +479,9 @@ class TabGroupsPanel(private val project: Project) : JBPanel<TabGroupsPanel>(Bor
             addActionListener { TabGroupCommands.removeTabFromGroup(project, group, reference) }
         }
         border = JBUI.Borders.empty(2, 8, 2, 4)
-        add(dragHandle)
+        if (showControls) add(dragHandle)
         add(nameLabel)
-        add(removeButton)
+        if (showControls) add(removeButton)
         if (parentPath != null) add(pathLabel)
         listOf<Component>(this, nameLabel, pathLabel).forEach { component ->
             component.addMouseListener(object : MouseAdapter() {

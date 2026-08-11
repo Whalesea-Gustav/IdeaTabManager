@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.10] - 2026-08-11
+
+### Changed
+
+- Added a per-Group adjustment switch after the note so file reorder handles and remove buttons are shown only when needed.
+- Hidden the empty `Add note` placeholder while keeping note editing available through the existing header interactions.
+- Kept file-row controls in natural order without forcing delete buttons into a shared right-aligned column.
+
 ## [0.2.9] - 2026-08-11
 
 ### Added
