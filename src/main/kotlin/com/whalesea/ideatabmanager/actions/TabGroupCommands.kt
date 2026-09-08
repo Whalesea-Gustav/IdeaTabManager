@@ -2,22 +2,28 @@ package com.whalesea.ideatabmanager.actions
 
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
-import com.intellij.icons.AllIcons
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.service
 import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.roots.ProjectFileIndex
+import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.ui.Messages
+import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
 import com.whalesea.ideatabmanager.IdeaTabManagerBundle
 import com.whalesea.ideatabmanager.model.TabGroupRecord
 import com.whalesea.ideatabmanager.model.TabReference
+import com.whalesea.ideatabmanager.service.ProjectSelectionCollector
 import com.whalesea.ideatabmanager.service.TabGroupProjectState
 import com.whalesea.ideatabmanager.service.TabGroupExternalTabService
 import com.whalesea.ideatabmanager.service.TabGroupRestorer
 import com.whalesea.ideatabmanager.service.TabGroupUndoOperation
+import java.nio.file.Path
 import com.whalesea.ideatabmanager.toolwindow.TabGroupColorPalette
+import com.whalesea.ideatabmanager.toolwindow.GroupColorPickerDialog
 import com.whalesea.ideatabmanager.toolwindow.GroupExternalTabsDialog
 import com.whalesea.ideatabmanager.toolwindow.OpenTabsSelectionDialog
 import com.whalesea.ideatabmanager.toolwindow.SingleChoiceDialog
@@ -241,6 +247,33 @@ object TabGroupCommands {
         addReferencesToGroup(project, group, validFiles.map(state::referenceFor))
     }
 
+    fun addProjectSelectionToGroup(project: Project, group: TabGroupRecord, selected: Collection<VirtualFile>) {
+        resolveProjectSelection(project, selected, group.name) { files ->
+            addFilesToGroup(project, group, files)
+        }
+    }
+
+    fun addProjectSelectionToChosenGroup(project: Project, selected: Collection<VirtualFile>) {
+        resolveProjectSelection(project, selected, null) { files ->
+            addFilesToChosenGroup(project, files)
+        }
+    }
+
+    fun createGroupFromProjectSelection(project: Project, selected: Collection<VirtualFile>) {
+        resolveProjectSelection(project, selected, null) { files ->
+            requestGroupName(project)?.let { name ->
+                val state = project.service<TabGroupProjectState>()
+                state.createGroup(
+                    name,
+                    TabGroupColorPalette.randomColorId(),
+                    files.map(state::referenceFor),
+                    files.firstOrNull()?.url,
+                )
+                notify(project, IdeaTabManagerBundle.message("notification.group.created-from-selection", name, files.size))
+            }
+        }
+    }
+
     fun addFilesToChosenGroup(project: Project, files: Collection<VirtualFile>) {
         val validFiles = files.filter { it.isValid && !it.isDirectory }.distinctBy { it.url }
         if (validFiles.isEmpty()) {
@@ -270,18 +303,10 @@ object TabGroupCommands {
     }
 
     fun changeColor(project: Project, group: TabGroupRecord) {
-        val colorNames = TabGroupColorPalette.displayNames()
-        val dialog = SingleChoiceDialog(
-            project,
-            IdeaTabManagerBundle.message("dialog.change-color.title"),
-            IdeaTabManagerBundle.message("dialog.change-color.prompt"),
-            colorNames,
-            colorNames.indexOf(TabGroupColorPalette.displayName(group.colorId)),
-        )
-        dialog.show()
-        val selectedIndex = dialog.selectedIndex ?: return
-        val displayName = TabGroupColorPalette.displayNames()[selectedIndex]
-        project.service<TabGroupProjectState>().changeGroupColor(group.id, TabGroupColorPalette.idForDisplayName(displayName))
+        val dialog = GroupColorPickerDialog(project, group.colorId)
+        if (!dialog.showAndGet()) return
+        val colorId = dialog.selectedColorId ?: return
+        project.service<TabGroupProjectState>().changeGroupColor(group.id, colorId)
     }
 
     fun delete(project: Project, group: TabGroupRecord) {
@@ -293,6 +318,78 @@ object TabGroupCommands {
     fun setCollapsed(project: Project, group: TabGroupRecord, isCollapsed: Boolean) {
         project.service<TabGroupProjectState>().setGroupCollapsed(group.id, isCollapsed)
     }
+
+    private fun resolveProjectSelection(
+        project: Project,
+        selected: Collection<VirtualFile>,
+        targetGroupName: String?,
+        onResolved: (List<VirtualFile>) -> Unit,
+    ) {
+        val roots = selected.mapNotNull { file ->
+            if (!file.isValid || !file.isInLocalFileSystem) {
+                null
+            } else {
+                runCatching { Path.of(file.path).toAbsolutePath().normalize() }.getOrNull()
+            }
+        }
+        if (roots.isEmpty()) {
+            notify(project, IdeaTabManagerBundle.message("notification.project-selection.empty"), NotificationType.INFORMATION)
+            return
+        }
+
+        ApplicationManager.getApplication().executeOnPooledThread {
+            val fileIndex = ProjectRootManager.getInstance(project).fileIndex
+            val localFileSystem = LocalFileSystem.getInstance()
+            val collected = ProjectSelectionCollector.collect(
+                roots,
+                skipDirectory = { path ->
+                    ProjectSelectionCollector.isSkippedDirectory(path) || isExcludedPath(fileIndex, localFileSystem, path)
+                },
+                skipFile = { path ->
+                    ProjectSelectionCollector.isSkippedFile(path) || isExcludedPath(fileIndex, localFileSystem, path)
+                },
+            )
+            val virtualFiles = collected.files.mapNotNull(localFileSystem::refreshAndFindFileByNioFile)
+            ApplicationManager.getApplication().invokeLater {
+                if (project.isDisposed) return@invokeLater
+                when {
+                    collected.truncated -> notify(
+                        project,
+                        IdeaTabManagerBundle.message("notification.project-selection.truncated", ProjectSelectionCollector.HARD_LIMIT),
+                        NotificationType.WARNING,
+                    )
+                    virtualFiles.isEmpty() -> notify(
+                        project,
+                        IdeaTabManagerBundle.message("notification.project-selection.empty"),
+                        NotificationType.INFORMATION,
+                    )
+                    ProjectSelectionCollector.needsConfirmation(virtualFiles.size) &&
+                        !confirmLargeSelection(project, virtualFiles.size, targetGroupName) -> Unit
+                    else -> onResolved(virtualFiles)
+                }
+            }
+        }
+    }
+
+    private fun confirmLargeSelection(project: Project, fileCount: Int, targetGroupName: String?): Boolean {
+        val message = if (targetGroupName == null) {
+            IdeaTabManagerBundle.message("dialog.add-project-selection.confirm-new.message", fileCount)
+        } else {
+            IdeaTabManagerBundle.message("dialog.add-project-selection.confirm.message", fileCount, targetGroupName)
+        }
+        return Messages.showYesNoDialog(
+            project,
+            message,
+            IdeaTabManagerBundle.message("dialog.add-project-selection.confirm.title"),
+            null,
+        ) == Messages.YES
+    }
+
+    private fun isExcludedPath(fileIndex: ProjectFileIndex, localFileSystem: LocalFileSystem, path: Path): Boolean =
+        ApplicationManager.getApplication().runReadAction<Boolean> {
+            val virtualFile = localFileSystem.findFileByNioFile(path) ?: return@runReadAction false
+            fileIndex.isExcluded(virtualFile) || fileIndex.isUnderIgnored(virtualFile)
+        }
 
     private fun addReferencesToGroup(project: Project, group: TabGroupRecord, references: Collection<TabReference>) {
         val state = project.service<TabGroupProjectState>()

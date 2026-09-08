@@ -5,6 +5,7 @@ import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
+import com.intellij.openapi.actionSystem.Separator
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.DumbAwareAction
@@ -13,57 +14,63 @@ import com.whalesea.ideatabmanager.IdeaTabManagerBundle
 import com.whalesea.ideatabmanager.model.TabGroupRecord
 import com.whalesea.ideatabmanager.service.TabGroupProjectState
 
-/** Dynamic Project View submenu: recent groups are one click away, with a full chooser as fallback. */
-class AddSelectedProjectFilesToGroupActionGroup : ActionGroup(IdeaTabManagerBundle.message("project-view.add-files-to-group"), true), DumbAware {
+/** Dynamic project-tree submenu for batch-adding the current file or folder selection. */
+open class AddSelectedProjectFilesToGroupActionGroup :
+    ActionGroup(IdeaTabManagerBundle.message("project-view.add-files-to-group"), true),
+    DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
 
     override fun update(event: AnActionEvent) {
-        event.presentation.isEnabledAndVisible = event.project != null && selectedFiles(event).isNotEmpty()
+        event.presentation.isEnabledAndVisible = event.project != null && selectedRoots(event).isNotEmpty()
     }
 
     override fun getChildren(event: AnActionEvent?): Array<AnAction> {
         val project = event?.project ?: return emptyArray()
-        val files = selectedFiles(event)
-        if (files.isEmpty()) return emptyArray()
+        val selected = selectedRoots(event)
+        if (selected.isEmpty()) return emptyArray()
 
-        val allGroups = project.service<TabGroupProjectState>().groups()
-        if (allGroups.isEmpty()) return arrayOf(disabledAction(IdeaTabManagerBundle.message("notification.group.required")))
+        val actions = mutableListOf<AnAction>(
+            object : DumbAwareAction(IdeaTabManagerBundle.message("project-view.new-group-from-selection")) {
+                override fun actionPerformed(actionEvent: AnActionEvent) {
+                    TabGroupCommands.createGroupFromProjectSelection(project, selected)
+                }
+            },
+        )
 
-        val recent = project.service<TabGroupProjectState>().recentGroups()
-        val actions = recent.map { group ->
+        val state = project.service<TabGroupProjectState>()
+        val allGroups = state.groups()
+        if (allGroups.isEmpty()) return actions.toTypedArray()
+
+        val recent = state.recentGroups()
+        actions += Separator.getInstance()
+        actions += recent.map { group ->
             object : DumbAwareAction(groupLabel(group)) {
                 override fun actionPerformed(actionEvent: AnActionEvent) {
-                    TabGroupCommands.addFilesToGroup(project, group, files)
+                    TabGroupCommands.addProjectSelectionToGroup(project, group, selected)
                 }
             }
-        }.toMutableList<AnAction>()
+        }
         if (allGroups.size > recent.size) {
             actions += object : DumbAwareAction(IdeaTabManagerBundle.message("project-view.more-groups")) {
                 override fun actionPerformed(actionEvent: AnActionEvent) {
-                    TabGroupCommands.addFilesToChosenGroup(project, files)
+                    TabGroupCommands.addProjectSelectionToChosenGroup(project, selected)
                 }
             }
         }
         return actions.toTypedArray()
     }
 
-    private fun selectedFiles(event: AnActionEvent): List<VirtualFile> {
-        val array = CommonDataKeys.VIRTUAL_FILE_ARRAY.getData(event.dataContext)
-            ?: CommonDataKeys.VIRTUAL_FILE.getData(event.dataContext)?.let(::arrayOf)
-            ?: return emptyList()
-        return array.filter { it.isValid && !it.isDirectory }.distinctBy { it.url }
-    }
-
-    private fun groupLabel(group: TabGroupRecord): String = buildString {
-        append(group.name)
-        if (group.comment.isNotBlank()) append(" — ").append(group.comment)
-    }
-
-    private fun disabledAction(text: String): AnAction = object : DumbAwareAction(text) {
-        override fun update(event: AnActionEvent) {
-            event.presentation.isEnabled = false
+    companion object {
+        fun selectedRoots(event: AnActionEvent): List<VirtualFile> {
+            val array = CommonDataKeys.VIRTUAL_FILE_ARRAY.getData(event.dataContext)
+                ?: CommonDataKeys.VIRTUAL_FILE.getData(event.dataContext)?.let(::arrayOf)
+                ?: return emptyList()
+            return array.filter { it.isValid && it.isInLocalFileSystem }.distinctBy { it.url }
         }
 
-        override fun actionPerformed(event: AnActionEvent) = Unit
+        fun groupLabel(group: TabGroupRecord): String = buildString {
+            append(group.name)
+            if (group.comment.isNotBlank()) append(" — ").append(group.comment)
+        }
     }
 }

@@ -5,10 +5,27 @@
 
   <description><![CDATA[
     <p>Save open editor files as named, colored, persistent work groups and restore a coding context when you return to it.</p>
-    <p>Manage groups from a compact Tool Window, batch-add files from the Project View, and optionally open a matching TortoiseSVN or TortoiseGit commit dialog for a group.</p>
+    <p>Manage groups from a compact Tool Window, batch-add selected files or folders from Project View, the navigation bar, or Rider Solution Explorer, and optionally open a matching TortoiseSVN or TortoiseGit commit dialog for a group.</p>
   ]]></description>
 
   <change-notes><![CDATA[
+    <h3>0.3.3 - Custom Tab Group colors</h3>
+    <ul>
+      <li>Change Color now opens a color picker with a live preview, RGB fields, hex input, and the original named swatches as shortcuts.</li>
+      <li>Custom colors are saved per group as <code>#RRGGBB</code>; existing named colors keep working.</li>
+    </ul>
+    <h3>0.3.2 - Project tree menus on all IntelliJ Platform IDEs</h3>
+    <ul>
+      <li>Tab Groups appears in Project View on IntelliJ IDEA, CLion, PyCharm, and other platform IDEs, placed next to the VCS group like the TortoiseSVN plugin.</li>
+      <li>The same batch-add submenu is available from the navigation bar file/folder context menu.</li>
+      <li>Rider continues to use Solution Explorer, and hides the nested Project View copy that Rider places under Tools.</li>
+    </ul>
+    <h3>0.3.1 - Batch add from project file trees</h3>
+    <ul>
+      <li>Right-click files or folders in Project View to add them to a Tab Group, including recursive folder contents.</li>
+      <li>Rider Solution Explorer now has the same Tab Groups submenu as the SVN integration plugin.</li>
+      <li>Large selections ask for confirmation; VCS/build folders and binary files are skipped.</li>
+    </ul>
     <h3>0.3.0 - Simplified Chinese localization</h3>
     <ul>
       <li>Added Simplified Chinese UI text for Tab Groups menus, dialogs, notifications, Tool Window controls, and color labels.</li>
@@ -85,6 +102,8 @@
   ]]></change-notes>
 
   <depends>com.intellij.modules.platform</depends>
+  <depends>com.intellij.modules.lang</depends>
+  <depends optional="true" config-file="rider.xml">com.intellij.modules.rider</depends>
 
   <resource-bundle>messages.IdeaTabManagerBundle</resource-bundle>
 
@@ -110,9 +129,16 @@
               class="com.whalesea.ideatabmanager.actions.RemoveCurrentTabFromGroupAction"/>
     </group>
     <group id="IdeaTabManager.TabGroups.ProjectViewPopup"
+           class="com.whalesea.ideatabmanager.actions.NonRiderAddSelectedProjectFilesToGroupActionGroup"
+           popup="true"
+           icon="/icons/tabGroups.svg">
+      <add-to-group group-id="ProjectViewPopupMenu" anchor="before" relative-to-action="VersionControlsGroup"/>
+    </group>
+    <group id="IdeaTabManager.TabGroups.NavbarPopup"
            class="com.whalesea.ideatabmanager.actions.AddSelectedProjectFilesToGroupActionGroup"
-           popup="true">
-      <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+           popup="true"
+           icon="/icons/tabGroups.svg">
+      <add-to-group group-id="NavbarPopupMenu" anchor="before" relative-to-action="VersionControlsGroup"/>
     </group>
     <action id="IdeaTabManager.ShowTabGroups"
             class="com.whalesea.ideatabmanager.actions.ShowTabGroupsAction">

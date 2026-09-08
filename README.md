@@ -10,7 +10,7 @@
 - `Tab Groups` 左侧 Tool Window 组列表与管理操作；
 - 项目级 `workspace.xml` 持久化模型、CRUD、文件解析与非破坏性恢复；
 - 编辑器正文与 Tab 右键的组管理入口；
-- `Save Selected Tabs` 弹窗与 Project View 的多文件批量编组；
+- `Save Selected Tabs` 弹窗，以及 Project View、导航栏、Rider Solution Explorer 右键批量加入文件或文件夹；
 - Header 折叠、随机组色、左右布局的标题/注释，以及 F2 行内编辑；
 - Group Header 的 `Add Open Tabs…` 与六点 Grip 拖拽排序（Tool Window 内直接鼠标定位，避免嵌入式 DnD 丢失）；
 - 安全的 Focus Group：只关闭组外的干净、未固定 Tab；

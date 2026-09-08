@@ -2,6 +2,36 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.3.3] - 2026-09-08
+
+### Added
+
+- Change Color opens a picker with live preview, RGB spinners, hex input, and the original named color swatches.
+- Custom group colors persist as `#RRGGBB` in workspace.xml; built-in named colors remain valid.
+
+## [0.3.2] - 2026-09-08
+
+### Added
+
+- Registered the batch-add submenu on the navigation bar file/folder context menu used by all IntelliJ Platform IDEs.
+- Declared the `lang` module dependency so Project View and Navbar popup groups are present on IDEA, CLion, PyCharm, WebStorm, and similar IDEs.
+
+### Changed
+
+- Moved the Project View entry next to the Version Control group, matching the TortoiseSVN plugin placement.
+
+## [0.3.1] - 2026-09-07
+
+### Added
+
+- Project View and Rider Solution Explorer can batch-add the current file or folder selection to a Tab Group, expanding folders recursively.
+- The project-tree submenu can create a new group from the selection when no groups exist yet.
+- Large selections ask for confirmation; VCS/build directories and binary files are skipped.
+
+### Changed
+
+- Rider hides the Project View Tab Groups entry so Solution Explorer is the single file-tree menu, matching the TortoiseSVN plugin's registration.
+
 ## [0.3.0] - 2026-08-11
 
 ### Added
