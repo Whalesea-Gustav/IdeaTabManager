@@ -21,6 +21,16 @@ class PluginMenuRegistrationTest {
         assertContains(pluginXml, """relative-to-action="VersionControlsGroup"""")
         assertContains(riderXml, """group-id="SolutionExplorerPopupMenu"""")
         assertTrue(pluginXml.contains("NonRiderAddSelectedProjectFilesToGroupActionGroup"))
+        assertContains(pluginXml, """icon="/icons/tabGroupsAction.svg"""")
+        assertContains(riderXml, """icon="/icons/tabGroupsAction.svg"""")
+    }
+
+    @Test
+    fun `project tree menu icon is 16px so it lines up with other popup actions`() {
+        val svg = read("src/main/resources/icons/tabGroupsAction.svg")
+        assertContains(svg, """width="16"""")
+        assertContains(svg, """height="16"""")
+        assertTrue(!svg.contains("""width="20""""))
     }
 
     private fun read(path: String): String =

@@ -21,7 +21,8 @@ class SingleChoiceDialog(
     options: Array<String>,
     initialIndex: Int = 0,
 ) : DialogWrapper(project) {
-    private val list = JBList(options).apply {
+    // Pass a List. Feeding the raw Array into JBList hits Java varargs as one row (`[Ljava.lang.String;@…`).
+    private val list = JBList(options.toList()).apply {
         selectionMode = ListSelectionModel.SINGLE_SELECTION
         selectedIndex = initialIndex.coerceIn(0, (model.size - 1).coerceAtLeast(0))
         visibleRowCount = minOf(10, model.size)

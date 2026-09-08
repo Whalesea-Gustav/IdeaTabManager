@@ -3,7 +3,7 @@
     <group id="IdeaTabManager.TabGroups.SolutionExplorerPopup"
            class="com.whalesea.ideatabmanager.actions.AddSelectedProjectFilesToGroupActionGroup"
            popup="true"
-           icon="/icons/tabGroups.svg">
+           icon="/icons/tabGroupsAction.svg">
       <add-to-group group-id="SolutionExplorerPopupMenu"
                     anchor="after"
                     relative-to-action="VcsFileGroupPopup"/>

@@ -20,6 +20,11 @@ All notable changes to this project are documented in this file.
 
 - Moved the Project View entry next to the Version Control group, matching the TortoiseSVN plugin placement.
 
+### Fixed
+
+- Project-tree Tab Groups menu now uses a 16×16 action icon so the icon column lines up with other context-menu items.
+- More Groups lists each tab group as its own row instead of showing a Java string-array identity.
+
 ## [0.3.1] - 2026-09-07
 
 ### Added

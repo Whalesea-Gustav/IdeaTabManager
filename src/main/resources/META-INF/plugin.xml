@@ -19,6 +19,8 @@
       <li>Tab Groups appears in Project View on IntelliJ IDEA, CLion, PyCharm, and other platform IDEs, placed next to the VCS group like the TortoiseSVN plugin.</li>
       <li>The same batch-add submenu is available from the navigation bar file/folder context menu.</li>
       <li>Rider continues to use Solution Explorer, and hides the nested Project View copy that Rider places under Tools.</li>
+      <li>The project-tree menu icon is now 16×16 so it lines up with other context-menu actions.</li>
+      <li>More Groups shows each tab group name instead of a Java array identity string.</li>
     </ul>
     <h3>0.3.1 - Batch add from project file trees</h3>
     <ul>
@@ -131,13 +133,13 @@
     <group id="IdeaTabManager.TabGroups.ProjectViewPopup"
            class="com.whalesea.ideatabmanager.actions.NonRiderAddSelectedProjectFilesToGroupActionGroup"
            popup="true"
-           icon="/icons/tabGroups.svg">
+           icon="/icons/tabGroupsAction.svg">
       <add-to-group group-id="ProjectViewPopupMenu" anchor="before" relative-to-action="VersionControlsGroup"/>
     </group>
     <group id="IdeaTabManager.TabGroups.NavbarPopup"
            class="com.whalesea.ideatabmanager.actions.AddSelectedProjectFilesToGroupActionGroup"
            popup="true"
-           icon="/icons/tabGroups.svg">
+           icon="/icons/tabGroupsAction.svg">
       <add-to-group group-id="NavbarPopupMenu" anchor="before" relative-to-action="VersionControlsGroup"/>
     </group>
     <action id="IdeaTabManager.ShowTabGroups"

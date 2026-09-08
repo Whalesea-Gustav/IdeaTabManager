@@ -22,6 +22,7 @@ object TabGroupIcons {
     val newEmptyGroup: Icon = IconLoader.getIcon("/icons/newEmptyGroup.svg", TabGroupIcons::class.java)
     val saveCurrentTabs: Icon = IconLoader.getIcon("/icons/saveCurrentTabs.svg", TabGroupIcons::class.java)
     val saveSelectedTabs: Icon = IconLoader.getIcon("/icons/saveSelectedTabs.svg", TabGroupIcons::class.java)
+    val menu: Icon = IconLoader.getIcon("/icons/tabGroupsAction.svg", TabGroupIcons::class.java)
 }
 
 /** Compact four-way cursor used only while hovering a Tab Group reorder grip. */
